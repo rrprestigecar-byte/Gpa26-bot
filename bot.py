@@ -1,4 +1,6 @@
-import os
+import threading
+from http.server import HTTPServer, BaseHTTPRequestHandler
+PORT = int(os.environ.get("PORT", "8080"))
 import time
 import json
 import logging
@@ -266,8 +268,14 @@ def main():
         f"Carburant: {CARBURANT or 'tous'}\n"
         f"Procédure: {PROCEDURE or 'toutes'}\n"
         f"Je vous alerterai dès qu'une nouvelle annonce correspond 🎯"
-    )
-
+    
+class KA(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.end_headers()
+        self.wfile.write(b"OK")
+    def log_message(self, *a): pass
+threading.Thread(target=lambda: HTTPServer(("0.0.0.0",PORT),KA).serve_forever(), daemon=True).start()
     while True:
         checks += 1
         log.info(f"[Check #{checks}] Vérification GPA26...")
