@@ -467,7 +467,7 @@ def scrape_commissaires():
 
 def scrape_leboncoin():
     try:
-        r = get_url(f"https://www.leboncoin.fr/recherche?category=2&price={PRIX_MIN}-{PRIX_MAX}&locations=France&sort=time&order=desc")
+https://www.leboncoin.fr/recherche?category=2&locations=Occitanie&price=0-3000&fuel=essence,diesel&sort=price&order=asc
         if not r: return []
         soup = BeautifulSoup(r.text, "html.parser")
         out = []
