@@ -1,4 +1,3 @@
-
 import os, time, json, logging, requests, re, hashlib
 from bs4 import BeautifulSoup
 from datetime import datetime
@@ -12,7 +11,7 @@ TELEGRAM_CHAT_ID  = os.environ.get("TELEGRAM_CHAT_ID", "")
 ANTHROPIC_KEY     = os.environ.get("ANTHROPIC_KEY", "")
 
 # Scan
-CHECK_INTERVAL    = int(os.environ.get("CHECK_INTERVAL", "45"))
+CHECK_INTERVAL    = int(os.environ.get("CHECK_INTERVAL", "14400"))
 
 # Filtres prix
 PRIX_MIN          = int(os.environ.get("PRIX_MIN", "500"))
@@ -385,3 +384,534 @@ def _parse(url, pattern, base, src, typ, limit=25):
     return annonces
 
 def scrape_alcopa():
+    try:
+        r = get_url(f"https://www.alcopa-auction.fr/recherche?prixMax={PRIX_MAX}&prixMin={PRIX_MIN}&kmMax={KM_MAX}&tri=dateDesc")
+        if not r: return []
+        soup = BeautifulSoup(r.text, "html.parser")
+        out = []
+        for item in soup.find_all("a", href=re.compile(r"/vehicule/|/lot/|/voiture/"))[:30]:
+            href = item.get("href","")
+            m = re.search(r"/(vehicule|lot|voiture)/([^/?]+)", href)
+            if not m: continue
+            text = item.get_text(" ", strip=True)
+            url_f = "https://www.alcopa-auction.fr" + href if href.startswith("/") else href
+            out.append(build("alcopa_"+m.group(2), "🏆 Alcopa", text, extraire_prix(text), extraire_km(text), extraire_annee(text), url_f, "enchere"))
+        log.info(f"   Alcopa: {len(out)}")
+        return out
+    except Exception as e: log.warning(f"Alcopa: {e}"); return []
+
+def scrape_bca():
+    try:
+        a = _parse("https://www.bcautoencheres.fr/buyer/facetedSearch/vehicle?bq=salecountry_exact%3AFR&sortby=auctiondate&pageSize=25",
+                   r"/buyer/|/vehicle/", "https://www.bcautoencheres.fr", "🔵 BCA Pro", "enchere", 25)
+        log.info(f"   BCA: {len(a)}"); return a
+    except Exception as e: log.warning(f"BCA: {e}"); return []
+
+def scrape_agorastore():
+    try:
+        r = get_url("https://www.agorastore.fr/vehicules-transports/voitures")
+        if not r: return []
+        soup = BeautifulSoup(r.text, "html.parser")
+        out = []
+        for item in soup.find_all("a", href=re.compile(r"/lot/"))[:25]:
+            href = item.get("href","")
+            m2 = re.search(r"/lot/([^/]+)", href)
+            if not m2: continue
+            text = item.get_text(" ", strip=True)
+            out.append(build("agora_"+m2.group(1), "🏛️ Agorastore", text, extraire_prix(text), 0, extraire_annee(text), "https://www.agorastore.fr"+href, "enchere"))
+        log.info(f"   Agorastore: {len(out)}"); return out
+    except Exception as e: log.warning(f"Agorastore: {e}"); return []
+
+def scrape_interencheres():
+    try:
+        a = _parse("https://www.interencheres.com/vehicules-transports/voitures/?sort=date_desc",
+                   r"/lot", "https://www.interencheres.com", "⚖️ Interenchères", "enchere", 20)
+        log.info(f"   Interenchères: {len(a)}"); return a
+    except Exception as e: log.warning(f"Interenchères: {e}"); return []
+
+def scrape_autobid():
+    try:
+        r = get_url(f"https://www.autobid.de/fr/recherche?priceTo={PRIX_MAX}&priceFrom={PRIX_MIN}&mileageTo={KM_MAX}&country=FR&sort=date_desc")
+        if not r: return []
+        soup = BeautifulSoup(r.text, "html.parser")
+        out = []
+        for item in soup.find_all("a", href=re.compile(r"/fr/voiture/"))[:20]:
+            href = item.get("href","")
+            m2 = re.search(r"/fr/voiture/([^/]+)", href)
+            if not m2: continue
+            text = item.get_text(" ", strip=True)
+            out.append(build("ab_"+m2.group(1), "🔨 Autobid", text, extraire_prix(text), extraire_km(text), extraire_annee(text), "https://www.autobid.de"+href, "enchere"))
+        log.info(f"   Autobid: {len(out)}"); return out
+    except Exception as e: log.warning(f"Autobid: {e}"); return []
+
+def scrape_drouot():
+    try:
+        a = _parse("https://www.drouot.com/lots?search=voiture&category=vehicules",
+                   r"/lot", "https://www.drouot.com", "🎪 Drouot", "enchere", 15)
+        log.info(f"   Drouot: {len(a)}"); return a
+    except Exception as e: log.warning(f"Drouot: {e}"); return []
+
+def scrape_domaines():
+    try:
+        a = _parse("https://encheres-domaine.gouv.fr/lot/liste?nature=1&famille=0201&tri=DateCreationDesc",
+                   r"/lot/detail", "https://encheres-domaine.gouv.fr", "🏛️ Domaines État 🇫🇷", "enchere_etat", 15)
+        log.info(f"   Domaines: {len(a)}"); return a
+    except Exception as e: log.warning(f"Domaines: {e}"); return []
+
+def scrape_commissaires():
+    try:
+        a = _parse("https://www.commissaires-justice.fr/ventes-aux-encheres/vehicules",
+                   r"/lot|/vehicule|/voiture", "https://www.commissaires-justice.fr", "⚖️ Commissaires", "enchere_etat", 15)
+        log.info(f"   Commissaires: {len(a)}"); return a
+    except Exception as e: log.warning(f"Commissaires: {e}"); return []
+
+def scrape_leboncoin():
+    try:
+        r = get_url(f"https://www.leboncoin.fr/recherche?category=2&price={PRIX_MIN}-{PRIX_MAX}&locations=France&sort=time&order=desc")
+        if not r: return []
+        soup = BeautifulSoup(r.text, "html.parser")
+        out = []
+        for item in soup.find_all("a", href=re.compile(r"/voitures/\d+"))[:25]:
+            href = item.get("href","")
+            m2 = re.search(r"/(\d+)", href)
+            if not m2: continue
+            text = item.get_text(" ", strip=True)
+            out.append(build("lbc_"+m2.group(1), "🟠 LeBonCoin", text, extraire_prix(text), extraire_km(text), extraire_annee(text), "https://www.leboncoin.fr"+href, "occasion"))
+        log.info(f"   LeBonCoin: {len(out)}"); return out
+    except Exception as e: log.warning(f"LeBonCoin: {e}"); return []
+
+def scrape_lacentrale():
+    try:
+        r = get_url(f"https://www.lacentrale.fr/listing?mileageMax={KM_MAX}&priceMin={PRIX_MIN}&priceMax={PRIX_MAX}&sortBy=creationDate&sortOrder=desc")
+        if not r: return []
+        soup = BeautifulSoup(r.text, "html.parser")
+        out = []
+        for item in soup.find_all("a", href=re.compile(r"/voiture-occasion"))[:20]:
+            href = item.get("href","")
+            if not href: continue
+            text = item.get_text(" ", strip=True)
+            prix = extraire_prix(text)
+            if not prix: continue
+            url_f = "https://www.lacentrale.fr" + href if href.startswith("/") else href
+            out.append(build("lc_"+hid(href), "🔵 La Centrale", text, prix, extraire_km(text), extraire_annee(text), url_f, "occasion"))
+        log.info(f"   LaCentrale: {len(out)}"); return out
+    except Exception as e: log.warning(f"LaCentrale: {e}"); return []
+
+def scrape_autoscout():
+    try:
+        r = get_url(f"https://www.autoscout24.fr/lst?sort=age&desc=1&ustate=N%2CU&size=20&priceto={PRIX_MAX}&pricefrom={PRIX_MIN}&mileageto={KM_MAX}&cy=F&atype=C")
+        if not r: return []
+        soup = BeautifulSoup(r.text, "html.parser")
+        out = []
+        for item in soup.find_all("a", href=re.compile(r"/offres/"))[:20]:
+            href = item.get("href","")
+            if not href: continue
+            text = item.get_text(" ", strip=True)
+            prix = extraire_prix(text)
+            if not prix: continue
+            url_f = "https://www.autoscout24.fr" + href if href.startswith("/") else href
+            out.append(build("as_"+hid(href), "🟡 AutoScout24", text, prix, extraire_km(text), extraire_annee(text), url_f, "occasion"))
+        log.info(f"   AutoScout24: {len(out)}"); return out
+    except Exception as e: log.warning(f"AutoScout: {e}"); return []
+
+def scrape_reezocar():
+    try:
+        r = get_url(f"https://www.reezocar.com/voiture/occasion/?price_max={PRIX_MAX}&price_min={PRIX_MIN}&km_max={KM_MAX}&sort=date_desc")
+        if not r: return []
+        soup = BeautifulSoup(r.text, "html.parser")
+        out = []
+        for item in soup.find_all("a", href=re.compile(r"/voiture/"))[:15]:
+            href = item.get("href","")
+            if not href or "/occasion/" in href: continue
+            text = item.get_text(" ", strip=True)
+            prix = extraire_prix(text)
+            if not prix: continue
+            url_f = "https://www.reezocar.com" + href if href.startswith("/") else href
+            out.append(build("rz_"+hid(href), "🔍 Reezocar", text, prix, extraire_km(text), extraire_annee(text), url_f, "occasion"))
+        log.info(f"   Reezocar: {len(out)}"); return out
+    except Exception as e: log.warning(f"Reezocar: {e}"); return []
+
+def scrape_gpa26():
+    try:
+        r = get_url("https://revente.gpa26.com/fr/")
+        if not r: return []
+        soup = BeautifulSoup(r.text, "html.parser")
+        out = []
+        for link in soup.find_all("a", href=re.compile(r"/fr/\d{5,}"))[:25]:
+            href = link["href"]
+            m2 = re.search(r"/fr/(\d+)", href)
+            if not m2: continue
+            text = link.get_text(" ", strip=True)
+            out.append(build("gpa_"+m2.group(1), "⚫ GPA26 Pro", text, extraire_prix(text), extraire_km(text), extraire_annee(text), "https://revente.gpa26.com"+href, "pro"))
+        log.info(f"   GPA26: {len(out)}"); return out
+    except Exception as e: log.warning(f"GPA26: {e}"); return []
+
+def scrape_paruvendu():
+    try:
+        a = _parse(f"https://www.paruvendu.fr/voiture-occasion/toutes-marques/?px1={PRIX_MIN}&px2={PRIX_MAX}&km2={KM_MAX}&tri=date_desc",
+                   r"/voiture-occasion/[^/]+/[^/]+/\d", "https://www.paruvendu.fr", "🟣 ParuVendu", "occasion", 15)
+        log.info(f"   ParuVendu: {len(a)}"); return a
+    except Exception as e: log.warning(f"ParuVendu: {e}"); return []
+
+def scrape_vivastreet():
+    try:
+        a = _parse(f"https://www.vivastreet.com/voitures/france?prix_min={PRIX_MIN}&prix_max={PRIX_MAX}&tri=date",
+                   r"/annonce/\d+|/voitures/\d+", "https://www.vivastreet.com", "🟤 VivaStreet", "occasion", 15)
+        log.info(f"   VivaStreet: {len(a)}"); return a
+    except Exception as e: log.warning(f"VivaStreet: {e}"); return []
+
+def scrape_aramisauto():
+    try:
+        a = _parse(f"https://www.aramisauto.com/voitures-occasion/?priceMin={PRIX_MIN}&priceMax={PRIX_MAX}&mileageMax={KM_MAX}&sortBy=price_asc",
+                   r"/voitures-occasion/[^/]+/[^/]+/\d", "https://www.aramisauto.com", "🔶 Aramisauto", "pro", 15)
+        log.info(f"   Aramisauto: {len(a)}"); return a
+    except Exception as e: log.warning(f"Aramisauto: {e}"); return []
+
+def scrape_zoomcar():
+    try:
+        a = _parse(f"https://www.zoomcar.fr/voiture-occasion/?prix_max={PRIX_MAX}&km_max={KM_MAX}",
+                   r"/voiture/\d+|/annonce/\d+", "https://www.zoomcar.fr", "🟢 ZoomCar", "pro", 15)
+        log.info(f"   ZoomCar: {len(a)}"); return a
+    except Exception as e: log.warning(f"ZoomCar: {e}"); return []
+
+def scrape_caroom():
+    try:
+        a = _parse(f"https://www.caroom.fr/annonces?price_to={PRIX_MAX}&price_from={PRIX_MIN}&mileage_to={KM_MAX}&sort=date_desc",
+                   r"/annonce/\d+|/voiture/\d+", "https://www.caroom.fr", "🔵 Caroom", "occasion", 15)
+        log.info(f"   Caroom: {len(a)}"); return a
+    except Exception as e: log.warning(f"Caroom: {e}"); return []
+
+SCRAPERS = [
+    scrape_alcopa, scrape_bca, scrape_agorastore, scrape_interencheres,
+    scrape_autobid, scrape_drouot, scrape_domaines, scrape_commissaires,
+    scrape_gpa26, scrape_leboncoin, scrape_lacentrale, scrape_autoscout,
+    scrape_reezocar, scrape_paruvendu, scrape_vivastreet, scrape_aramisauto,
+    scrape_zoomcar, scrape_caroom,
+]
+
+def scan_tout():
+    out = []
+    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as ex:
+        futures = {ex.submit(s): s.__name__ for s in SCRAPERS}
+        for f in as_completed(futures):
+            try: out.extend(f.result())
+            except Exception as e: log.warning(f"Scraper: {e}")
+    return out
+
+# ══════════════════════════════════════════════════════════════
+# ANALYSE IA — MAX Expert
+# ══════════════════════════════════════════════════════════════
+def analyser_ia(a, score_pre):
+    if not ANTHROPIC_KEY: return None
+
+    mot = analyser_moteur(a["titre"])
+    infos_moteur = ""
+    if mot:
+        infos_moteur = f"""
+MOTEUR IDENTIFIÉ : {mot[0]}
+Fiabilité : {mot[1]}/10  |  Score ajustement : {mot[1]:+d}
+Conseil expert : {mot[3]}"""
+
+    type_label = {
+        "enchere":      "ENCHÈRE — prix marteau 30-50% sous marché souvent",
+        "enchere_etat": "ENCHÈRE JUDICIAIRE/ÉTAT — mise à prix très basse, peu de concurrence = meilleures affaires",
+        "pro":          "VENTE PRO — véhicule traçable, historique dispo",
+        "occasion":     "OCCASION particulier ou pro",
+    }.get(a.get("type",""), "")
+
+    prompt = f"""Tu es MAX, le meilleur expert automobile achat-revente au monde. 50 ans d'expérience. 50 000 véhicules vendus. Tu connais L'Argus par coeur.
+
+MISSION : dire si c'est une PÉPITE pour un marchand auto-entrepreneur qui achète bas pour revendre avec marge.
+
+ANNONCE :
+Titre: {a['titre']}
+Prix demandé: {a['prix']}€
+Kilométrage: {a['km'] or '?'} km
+Année: {a['annee'] or '?'}
+Carburant détecté: {a.get('_carburant','?')}
+Boîte détectée: {a.get('_boite','?')}
+Source: {a['source']} — {type_label}
+Pré-score MAX: {score_pre}/100
+{infos_moteur}
+
+CADRE FINANCIER AUTO-ENTREPRENEUR :
+- Budget max: {PRIX_MAX}€
+- Cotisations AE: {COTISATIONS_AE}% sur prix revente
+- TVA sur marge (régime VO): sur marge brute uniquement
+- Marge nette minimum souhaitée: {MARGE_NETTE_MIN}€ après AE+TVA
+- Décote minimum vs Argus: {DECOTE_MIN}%
+
+RÈGLE ABSOLUE : Ne valider comme pépite QUE si :
+1. Prix demandé < Argus d'au moins {DECOTE_MIN}%
+2. Marge nette après AE+TVA ≥ {MARGE_NETTE_MIN}€
+3. Pas de défaut rédhibitoire non chiffré
+
+Réponds UNIQUEMENT en JSON valide :
+{{
+  "score": <0-100>,
+  "est_pepite": <true/false — respecter les 3 règles ci-dessus>,
+  "verdict": "<AFFAIRE EXCEPTIONNELLE 💎 / EXCELLENTE AFFAIRE 🔥 / BONNE AFFAIRE ✅ / PASSABLE ⚠️ / À ÉVITER ❌>",
+  "prix_argus": <cote Argus réelle €>,
+  "decote_pct": <% décote vs Argus>,
+  "economies_argus": <économie vs Argus €>,
+  "prix_revente_bas": <prix revente prudent €>,
+  "prix_revente_haut": <prix revente optimiste €>,
+  "marge_brute": <marge brute €>,
+  "tva_marge": <TVA sur marge à reverser €>,
+  "cotisations_ae": <cotisations AE à payer €>,
+  "marge_nette": <marge nette réelle en poche €>,
+  "roi": <ROI % net>,
+  "prix_achat_max": <ne jamais dépasser ce prix €>,
+  "delai_revente": "<ex: 1-2 semaines>",
+  "points_forts": "<3 arguments concrets>",
+  "risques": "<risques chiffrés>",
+  "negociation": "<tactique de négociation précise>",
+  "verifications": "<5 points précis à vérifier à la visite>",
+  "conseil_max": "<verdict MAX en 1 phrase directe et franche>",
+  "urgence": <true si score>=88 et marge_nette>1000>
+}}"""
+
+    try:
+        r = requests.post("https://api.anthropic.com/v1/messages",
+            headers={"Content-Type":"application/json","x-api-key":ANTHROPIC_KEY,"anthropic-version":"2023-06-01"},
+            json={"model":"claude-haiku-4-5-20251001","max_tokens":700,
+                  "messages":[{"role":"user","content":prompt}]},
+            timeout=30)
+        txt = r.json()["content"][0]["text"].strip()
+        txt = re.sub(r"```json|```","",txt).strip()
+        return json.loads(txt)
+    except Exception as e:
+        log.warning(f"IA: {e}"); return None
+
+# ══════════════════════════════════════════════════════════════
+# TELEGRAM
+# ══════════════════════════════════════════════════════════════
+def send(msg, urgente=False):
+    if not TELEGRAM_TOKEN or not TELEGRAM_CHAT_ID: return
+    try:
+        requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage",
+            json={"chat_id":TELEGRAM_CHAT_ID,"text":msg,"parse_mode":"HTML",
+                  "disable_web_page_preview":False,"disable_notification":not urgente},
+            timeout=10)
+    except Exception as e: log.error(f"Telegram: {e}")
+
+def format_alerte(a, an):
+    score   = an.get("score",0)
+    emoji,_ = get_note_pepite(score)
+    barre   = barre_score(score)
+    urgence = an.get("urgence",False)
+
+    carb_e  = {"DIESEL":"⛽","ESSENCE":"🔴","HYBRIDE":"🟢","ELECTRIQUE":"⚡","GPL":"🟡","ETHANOL":"🌿"}.get(a.get("_carburant",""),"⛽")
+    boite_e = {"MANUELLE":"🔧","AUTOMATIQUE":"🔄","DSG":"⚙️","EDC":"⚙️","CVT":"🔄","ROBOTISEE":"⚙️"}.get(a.get("_boite",""),"🔧")
+
+    km_str  = f" · {a['km']:,}km".replace(",",".") if a.get("km") else ""
+    an_str  = f" · {a['annee']}" if a.get("km") else ""
+
+    entete = ("🚨 <b>ALERTE URGENTE</b> 🚨\n" if urgence else "") + \
+             f"{emoji} <b>{an.get('verdict','')}</b>\n" + \
+             f"📊 NOTE MAX : <b>{score}/100</b>  <code>[{barre}]</code>"
+
+    # Moteur
+    mot = analyser_moteur(a["titre"])
+    mot_line = ""
+    if mot:
+        fid_e = "✅" if mot[1] > 0 else "⚠️" if mot[1] > -15 else "❌"
+        mot_line = f"\n🔧 Moteur: <b>{mot[0][:25]}</b> {fid_e} Fiabilité {mot[2]}/10\n<i>{mot[3][:80]}</i>\n"
+
+    # Détail score
+    detail = a.get("_detail_score",{})
+    detail_str = " · ".join([f"{k}:{v}" for k,v in list(detail.items())[:4]])
+
+    return (
+        f"{entete}\n\n"
+        f"🚘 <b>{a['titre'][:70]}</b>{an_str}{km_str}\n"
+        f"{carb_e} {a.get('_carburant','?')} · {boite_e} {a.get('_boite','?')}\n"
+        f"{mot_line}\n"
+        f"━━━━━━━━━━━━━━━━━━━━━\n"
+        f"💶 Prix demandé :  <b>{a['prix']:,}€</b>\n".replace(",",".") +
+        f"📊 Cote Argus :    <b>{an.get('prix_argus',0):,}€</b>\n".replace(",",".") +
+        f"🎯 Sous Argus :    <b>-{an.get('economies_argus',0):,}€  (-{an.get('decote_pct',0)}%)</b> ✅\n".replace(",",".") +
+        f"💰 Revente :       <b>{an.get('prix_revente_bas',0):,}€ → {an.get('prix_revente_haut',0):,}€</b>\n".replace(",",".") +
+        f"━━━━━━━━━━━━━━━━━━━━━\n"
+        f"💼 <b>VOTRE MARGE RÉELLE (AE) :</b>\n"
+        f"   Marge brute :        +{an.get('marge_brute',0):,}€\n".replace(",",".") +
+        f"   TVA sur marge :      -{an.get('tva_marge',0):,}€\n".replace(",",".") +
+        f"   Cotis. AE {COTISATIONS_AE}% :    -{an.get('cotisations_ae',0):,}€\n".replace(",",".") +
+        f"   ➡️ <b>NET EN POCHE : +{an.get('marge_nette',0):,}€</b>\n".replace(",",".") +
+        f"🔄 ROI : <b>{an.get('roi',0)}%</b>  ·  ⏱️ Délai : <b>{an.get('delai_revente','?')}</b>\n"
+        f"━━━━━━━━━━━━━━━━━━━━━\n"
+        f"✅ <i>{an.get('points_forts','')}</i>\n"
+        f"⚠️ <i>{an.get('risques','')}</i>\n\n"
+        f"🤝 Prix max à payer : <b>{an.get('prix_achat_max',0):,}€</b>\n".replace(",",".") +
+        f"💬 Négo : <i>{an.get('negociation','')}</i>\n"
+        f"🔍 À vérifier : <i>{an.get('verifications','')}</i>\n\n"
+        f"💡 <b>MAX :</b> <i>{an.get('conseil_max','')}</i>\n\n"
+        f"📍 {a['source']}\n"
+        f"🧮 <i>{detail_str}</i>\n"
+        f"🔗 <a href='{a['url']}'>👉 Voir l'annonce →</a>\n"
+        f"⏰ {datetime.now().strftime('%d/%m à %H:%M:%S')}"
+    )
+
+def format_rapport(stats, pepites):
+    top3 = sorted(pepites, key=lambda x: x.get("score",0), reverse=True)[:3]
+    return (
+        f"📊 <b>RAPPORT QUOTIDIEN — MAX</b>\n"
+        f"📅 {datetime.now().strftime('%A %d/%m/%Y à %Hh%M')}\n\n"
+        f"🔍 Scannées :    <b>{stats['scanne']:,}</b>\n".replace(",",".") +
+        f"🧠 Analysées :   <b>{stats['analyse']:,}</b>\n".replace(",",".") +
+        f"🔥 Pépites :     <b>{stats['pepites']}</b>\n"
+        f"💰 Marge totale: <b>{stats['marge']:,}€</b>\n\n".replace(",",".") +
+        f"<b>🏆 Top 3 :</b>\n" +
+        "".join([f"• {p.get('titre','')[:40]} — {p.get('score',0)}/100 · +{p.get('marge_nette',0):,}€\n".replace(",",".") for p in top3]) +
+        f"\n⚡ Scan toutes les {CHECK_INTERVAL}s · 18 sources actives\n"
+        f"✅ <i>MAX veille pour vous 24h/24 🔥</i>"
+    )
+
+# ══════════════════════════════════════════════════════════════
+# MAIN
+# ══════════════════════════════════════════════════════════════
+def main():
+    log.info("="*60)
+    log.info("💎 MAX v5 ULTRA — LE MEILLEUR CHASSEUR DE PÉPITES")
+    log.info(f"   18 sources · Scan toutes les {CHECK_INTERVAL}s · Parallèle")
+    log.info(f"   Prix: {PRIX_MIN}€→{PRIX_MAX}€ · KM: {KM_MIN}-{KM_MAX} · {ANNEE_MIN}-{ANNEE_MAX}")
+    log.info(f"   Score min: {SCORE_MIN}/100 · Marge nette min: {MARGE_NETTE_MIN}€ · Décote min: {DECOTE_MIN}%")
+    log.info(f"   AE: {COTISATIONS_AE}% · TVA marge: {TVA_MARGE}")
+    log.info("="*60)
+
+    known     = load_known()
+    stats     = load_stats()
+    pepites   = load_pepites()
+    checks    = 0
+    dernier_rapport = datetime.now().replace(hour=0, minute=0, second=0)
+
+    send(
+        "💎 <b>MAX v5 ULTRA — DÉMARRÉ</b> 💎\n\n"
+        "📡 <b>18 sources surveillées en parallèle</b>\n\n"
+        "<b>🔨 Enchères :</b> Alcopa · BCA · Agorastore\n"
+        "Interenchères · Autobid · Drouot\n"
+        "Domaines État 🇫🇷 · Commissaires judiciaires\n\n"
+        "<b>🚗 Occasions :</b> GPA26 · LeBonCoin · La Centrale\n"
+        "AutoScout24 · Reezocar · ParuVendu\n"
+        "VivaStreet · Aramisauto · ZoomCar · Caroom\n\n"
+        f"⚡ Scan toutes les <b>{CHECK_INTERVAL}s</b>\n"
+        f"🎯 Filtre strict : score ≥{SCORE_MIN} · marge ≥{MARGE_NETTE_MIN}€ · décote ≥{DECOTE_MIN}%\n"
+        f"💼 AE {COTISATIONS_AE}% · TVA marge déduits automatiquement\n"
+        f"📋 Rapport toutes les <b>{RAPPORT_INTERVAL} minutes</b>\n\n"
+        "✅ <b>MAX est en chasse — vous serez le PREMIER alerté ! 🔥</b>"
+    )
+
+    while True:
+        checks += 1
+        now = datetime.now()
+        stats["checks"] = checks
+
+        # Rapport toutes les X minutes
+        if (now - dernier_rapport).total_seconds() >= RAPPORT_INTERVAL * 60:
+            send(format_rapport(stats, pepites))
+            dernier_rapport = now
+
+        log.info(f"\n{'='*55}")
+        log.info(f"[Check #{checks}] {now.strftime('%H:%M:%S')} — Scan 18 sources...")
+
+        toutes = scan_tout()
+        stats["scanne"] += len(toutes)
+        log.info(f"   Total: {len(toutes)} annonces")
+
+        # Filtre + dédup
+        nouvelles = [a for a in toutes if a["id"] not in known and matches_filter(a)]
+        log.info(f"   → {len(nouvelles)} nouvelles après filtres")
+
+        # Pré-score + tri (meilleures en premier)
+        for a in nouvelles:
+            a["_score_pre"] = scorer(a)
+        nouvelles.sort(key=lambda x: x["_score_pre"], reverse=True)
+
+        for a in nouvelles:
+            known.add(a["id"])
+            src_k = re.sub(r"[^\w]","",a["source"])[:12]
+            stats["sources"][src_k] = stats["sources"].get(src_k,0) + 1
+
+            score_pre = a.get("_score_pre", 50)
+
+            # Pré-filtre rapide
+            if score_pre < (SCORE_MIN - 20):
+                log.info(f"   ⏭  Pré-score {score_pre} trop bas — ignoré")
+                continue
+            if not a["prix"] and a["type"] not in ["enchere","enchere_etat"]:
+                continue
+
+            if ANTHROPIC_KEY:
+                log.info(f"   🧠 [{score_pre}/100] {a['titre'][:45]}...")
+                analyse = analyser_ia(a, score_pre)
+                stats["analyse"] += 1
+
+                if analyse:
+                    score       = analyse.get("score", 0)
+                    est_pepite  = analyse.get("est_pepite", False)
+                    marge_nette = analyse.get("marge_nette", 0)
+                    decote      = analyse.get("decote_pct", 0)
+                    prix_argus  = analyse.get("prix_argus", 0)
+                    urgence     = analyse.get("urgence", False) or score >= SCORE_URGENTE
+
+                    # ── CRITÈRES STRICTS ──
+                    ok_score   = score >= SCORE_MIN
+                    ok_marge   = marge_nette >= MARGE_NETTE_MIN
+                    ok_decote  = decote >= DECOTE_MIN
+                    ok_argus   = prix_argus > 0 and a["prix"] < prix_argus
+                    ok_ia      = est_pepite
+
+                    if ok_score and ok_marge and ok_decote and ok_argus and ok_ia:
+                        log.info(f"   💎 PÉPITE ! {score}/100 · -{decote}% Argus · +{marge_nette}€ net")
+                        stats["pepites"] += 1
+                        stats["marge"]    = stats.get("marge",0) + marge_nette
+
+                        pepite_rec = {**analyse, "titre":a["titre"][:60],
+                                      "url":a["url"], "source":a["source"],
+                                      "date":now.isoformat()}
+                        pepites.append(pepite_rec)
+                        save_pepites(pepites)
+
+                        send(format_alerte(a, analyse), urgente=urgence)
+                        time.sleep(0.3)
+                    else:
+                        raisons = []
+                        if not ok_score:  raisons.append(f"score {score}<{SCORE_MIN}")
+                        if not ok_marge:  raisons.append(f"marge {marge_nette}€<{MARGE_NETTE_MIN}€")
+                        if not ok_decote: raisons.append(f"décote {decote}%<{DECOTE_MIN}%")
+                        if not ok_argus:  raisons.append(f"prix≥Argus")
+                        if not ok_ia:     raisons.append("IA: pas pépite")
+                        log.info(f"   ⏭  Rejeté: {' | '.join(raisons)}")
+
+                else:
+                    # Sans analyse réussie — enchère État uniquement
+                    if a.get("type") == "enchere_etat" and a["prix"] > 0:
+                        send(
+                            f"🏛️ <b>SAISIE ÉTAT — À analyser manuellement</b>\n"
+                            f"🚘 {a['titre'][:60]}\n"
+                            f"💶 Mise à prix: <b>{a['prix']:,}€</b>\n".replace(",",".") +
+                            f"📍 {a['source']}\n"
+                            f"🔗 <a href='{a['url']}'>👉 Voir →</a>"
+                        )
+            else:
+                # Sans clé IA — pré-score uniquement
+                if score_pre >= SCORE_MIN:
+                    emoji, label = get_note_pepite(score_pre)
+                    send(
+                        f"{emoji} <b>{label}</b>\n"
+                        f"📊 NOTE MAX : <b>{score_pre}/100</b>  <code>[{barre_score(score_pre)}]</code>\n\n"
+                        f"🚘 {a['titre'][:60]}\n"
+                        f"💶 {a['prix']:,}€{' · '+str(a['km'])+'km' if a.get('km') else ''}\n".replace(",",".") +
+                        f"⛽ {a.get('_carburant','?')} · 🔧 {a.get('_boite','?')}\n"
+                        f"📍 {a['source']}\n"
+                        f"🔗 <a href='{a['url']}'>👉 Voir →</a>\n"
+                        f"<i>⚠️ Ajoutez ANTHROPIC_KEY pour l'analyse MAX complète</i>"
+                    )
+
+        save_known(known)
+        save_stats(stats)
+        log.info(f"   ✅ Check #{checks} — prochaine vérif dans {CHECK_INTERVAL}s")
+        time.sleep(CHECK_INTERVAL)
+
+if __name__ == "__main__":
+    main()
