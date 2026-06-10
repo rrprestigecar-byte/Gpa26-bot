@@ -260,14 +260,19 @@ def main():
     known_ids = load_known_ids()
     checks = 0
 
-    # Envoi message de démarrage
-    send_telegram(
+    # Envoi messasend_telegram(
+    f"✅ <b>GPA26 Bot démarré</b>\n"
+    ...
+    f"Je vous alerterai dès qu'une nouvelle annonce correspond 🎯"
+)ge de démarrage
+    s
         f"✅ <b>GPA26 Bot démarré</b>\n"
         f"Surveillance toutes les {CHECK_INTERVAL}s\n"
         f"Prix: {PRIX_MIN}€ → {PRIX_MAX or '∞'}€\n"
         f"Carburant: {CARBURANT or 'tous'}\n"
         f"Procédure: {PROCEDURE or 'toutes'}\n"
         f"Je vous alerterai dès qu'une nouvelle annonce correspond 🎯"
+)
     
 class KA(BaseHTTPRequestHandler):
     def do_GET(self):
