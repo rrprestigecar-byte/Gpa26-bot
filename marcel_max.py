@@ -41,9 +41,9 @@ MARQUES_BLACKLIST = [m.strip().upper() for m in os.environ.get("MARQUES_BLACKLIS
 MOTS_CLES         = [m.strip().lower() for m in os.environ.get("MOTS_CLES","").split(",") if m.strip()]
 
 # Seuils pépites — MAX n'envoie QUE si TOUS ces critères sont remplis
-SCORE_MIN         = int(os.environ.get("SCORE_MIN", "70"))          # Note /100 minimum
-MARGE_NETTE_MIN   = int(os.environ.get("MARGE_NETTE_MIN", "600"))   # Marge nette AE minimum €
-DECOTE_MIN        = int(os.environ.get("DECOTE_MIN", "15"))         # % minimum sous Argus
+SCORE_MIN         = int(os.environ.get("SCORE_MIN", "45"))          # Note /100 minimum
+MARGE_NETTE_MIN   = int(os.environ.get("MARGE_NETTE_MIN", "400"))   # Marge nette AE minimum €
+DECOTE_MIN        = int(os.environ.get("DECOTE_MIN", "10"))         # % minimum sous Argus
 SCORE_URGENTE     = int(os.environ.get("SCORE_URGENTE", "88"))      # Score alerte urgente (son)
 
 # Fiscal auto-entrepreneur
@@ -51,7 +51,7 @@ COTISATIONS_AE    = float(os.environ.get("COTISATIONS_AE", "12.3"))
 TVA_MARGE         = os.environ.get("TVA_MARGE", "true").lower() == "true"
 
 # Rapport
-RAPPORT_INTERVAL  = int(os.environ.get("RAPPORT_INTERVAL", "1"))   # Rapport toutes les X minutes
+RAPPORT_INTERVAL  = int(os.environ.get("RAPPORT_INTERVAL", "240"))   # Rapport toutes les X minutes
 
 # Parallel
 MAX_WORKERS       = int(os.environ.get("MAX_WORKERS", "10"))
@@ -851,8 +851,8 @@ def main():
                     ok_score   = score >= SCORE_MIN
                     ok_marge   = marge_nette >= MARGE_NETTE_MIN
                     ok_decote  = decote >= DECOTE_MIN
-                    ok_argus   = prix_argus > 0 and a["prix"] < prix_argus
-                    ok_ia      = est_pepite
+                    ok_argus  = True
+                    ok_ia = True
 
                     if ok_score and ok_marge and ok_decote and ok_argus and ok_ia:
                         log.info(f"   💎 PÉPITE ! {score}/100 · -{decote}% Argus · +{marge_nette}€ net")
