@@ -475,7 +475,7 @@ https://www.leboncoin.fr/recherche?category=2&locations=Occitanie&price=0-3000&f
             href = item.get("href","")
             m2 = re.search(r"/(\d+)", href)
             if not m2: continue
-            text = item.get_text(" ", strip=True)
+            r = get_url("https://www.leboncoin.fr/recherche?category=2&locations
             out.append(build("lbc_"+m2.group(1), "🟠 LeBonCoin", text, extraire_prix(text), extraire_km(text), extraire_annee(text), "https://www.leboncoin.fr"+href, "occasion"))
         log.info(f"   LeBonCoin: {len(out)}"); return out
     except Exception as e: log.warning(f"LeBonCoin: {e}"); return []
