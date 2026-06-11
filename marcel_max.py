@@ -463,11 +463,11 @@ def scrape_commissaires():
         a = _parse("https://www.commissaires-justice.fr/ventes-aux-encheres/vehicules",
                    r"/lot|/vehicule|/voiture", "https://www.commissaires-justice.fr", "⚖️ Commissaires", "enchere_etat", 15)
         log.info(f"   Commissaires: {len(a)}"); return a
-    except Exception as e: log.warning(f"Commissaires: {e}"); return []
-
-def scrape_leboncoin():
+    except Exception as e: log.warning(f"Commissaires: {e
+    
+    def scrape_leboncoin():
     try:
-https://www.leboncoin.fr/recherche?category=2&locations=Occitanie&price=0-3000&fuel=essence,diesel&sort=price&order=asc
+        r = get_url("https://www.leboncoin.fr/recherche?category=2&locations=Occitanie&price=0-3000&fuel=essence,diesel&sort=price&order=asc")
         if not r: return []
         soup = BeautifulSoup(r.text, "html.parser")
         out = []
@@ -475,21 +475,14 @@ https://www.leboncoin.fr/recherche?category=2&locations=Occitanie&price=0-3000&f
             href = item.get("href","")
             m2 = re.search(r"/(\d+)", href)
             if not m2: continue
-            r = get_url("https://www.leboncoin.fr/recherche?category=2&locations
-            out.append(build("lbc_"+m2.group(1), "🟠 LeBonCoin", text, extraire_prix(text), extraire_km(text), extraire_annee(text), "https://www.leboncoin.fr"+href, "occasion"))
+            text = item.get_text(" ", strip=True)
+            if not text: continue
+            out.append(build("lbc_"+m2.group(1), "🟠 LeBonCoin", text, extraire_prix(text), extraire_km(text), extraire_annee(text), "https://www.leboncoin.fr"+href))
         log.info(f"   LeBonCoin: {len(out)}"); return out
     except Exception as e: log.warning(f"LeBonCoin: {e}"); return []
 
-def scrape_lacentrale():
-    try:
-        r = get_url(f"https://www.lacentrale.fr/listing?mileageMax={KM_MAX}&priceMin={PRIX_MIN}&priceMax={PRIX_MAX}&sortBy=creationDate&sortOrder=desc")
-        if not r: return []
-        soup = BeautifulSoup(r.text, "html.parser")
-        out = []
-        for item in soup.find_all("a", href=re.compile(r"/voiture-occasion"))[:20]:
-            href = item.get("href","")
-            if not href: continue
-            text = item.get_text(" ", strip=True)
+        
+
             prix = extraire_prix(text)
             if not prix: continue
             url_f = "https://www.lacentrale.fr" + href if href.startswith("/") else href
