@@ -1,4 +1,7 @@
 import os, time, json, logging, requests, re, hashlib, random, unicodedata
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 from bs4 import BeautifulSoup
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -10,6 +13,11 @@ from pathlib import Path
 TELEGRAM_TOKEN    = os.environ.get("TELEGRAM_TOKEN", "")
 TELEGRAM_CHAT_ID  = os.environ.get("TELEGRAM_CHAT_ID", "")
 ANTHROPIC_KEY     = os.environ.get("ANTHROPIC_KEY", "")
+
+# Email
+EMAIL_DEST        = os.environ.get("EMAIL_DEST", "rrprestigecar@hotmail.com")
+EMAIL_SMTP_USER   = os.environ.get("EMAIL_SMTP_USER", "")   # ton Gmail ex: moncompte@gmail.com
+EMAIL_SMTP_PASS   = os.environ.get("EMAIL_SMTP_PASS", "")   # mot de passe application Gmail
 
 CHECK_INTERVAL    = int(os.environ.get("CHECK_INTERVAL", "45"))
 PRIX_MIN          = int(os.environ.get("PRIX_MIN", "500"))
@@ -785,6 +793,21 @@ def send(msg, urgente=False):
             timeout=10)
     except Exception as e: log.error(f"Telegram: {e}")
 
+def send_email(sujet, corps_html):
+    if not EMAIL_SMTP_USER or not EMAIL_SMTP_PASS: return
+    try:
+        msg = MIMEMultipart("alternative")
+        msg["Subject"] = sujet
+        msg["From"]    = EMAIL_SMTP_USER
+        msg["To"]      = EMAIL_DEST
+        msg.attach(MIMEText(corps_html, "html", "utf-8"))
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=15) as srv:
+            srv.login(EMAIL_SMTP_USER, EMAIL_SMTP_PASS)
+            srv.sendmail(EMAIL_SMTP_USER, EMAIL_DEST, msg.as_string())
+        log.info(f"   📧 Email envoyé → {EMAIL_DEST}")
+    except Exception as e:
+        log.warning(f"Email: {e}")
+
 def get_updates(offset=0):
     if not TELEGRAM_TOKEN: return [], offset
     try:
@@ -1083,7 +1106,12 @@ def main():
                                       "date":now.isoformat()}
                         pepites.append(pepite_rec)
                         save_pepites(pepites)
-                        send(format_alerte(a, analyse), urgente=urgence)
+                        alerte_txt = format_alerte(a, analyse)
+                        send(alerte_txt, urgente=urgence)
+                        # Email
+                        sujet = f"💎 MAX — {analyse.get('verdict','Pépite')} | {a['titre'][:50]}"
+                        corps = alerte_txt.replace("\n","<br>").replace("━","—")
+                        send_email(sujet, f"<pre style='font-family:Arial;font-size:14px'>{corps}</pre>")
                         time.sleep(0.3)
                     else:
                         raisons = []
