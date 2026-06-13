@@ -367,6 +367,8 @@ def matches_filter(a):
     prix_min = cfg("prix_min", PRIX_MIN)
     prix_max = cfg("prix_max", PRIX_MAX)
     km_max   = cfg("km_max", KM_MAX)
+    # Ignorer annonces vendues/indisponibles
+    if est_vendu(a["titre"]): return False
     if a["prix"]  > 0 and a["prix"]  < prix_min:  return False
     if a["prix"]  > 0 and a["prix"]  > prix_max:  return False
     if a["km"]    > 0 and a["km"]    < KM_MIN:    return False
@@ -574,19 +576,40 @@ def scrape_reezocar():
         log.info(f"   Reezocar: {len(out)}"); return out
     except Exception as e: log.warning(f"Reezocar: {e}"); return []
 
+MOTS_VENDU = ["vendu","sold","indisponible","réservé","reserve","plus disponible","retiré","retire"]
+
+def est_vendu(texte, soup_item=None):
+    t = texte.lower()
+    if any(m in t for m in MOTS_VENDU): return True
+    if soup_item:
+        # Chercher classes ou attributs indiquant vendu
+        classes = " ".join(soup_item.get("class", [])).lower()
+        if any(m in classes for m in ["sold","vendu","unavailable","disabled"]): return True
+        parent = soup_item.parent
+        if parent:
+            parent_classes = " ".join(parent.get("class", [])).lower()
+            if any(m in parent_classes for m in ["sold","vendu","unavailable","disabled"]): return True
+    return False
+
 def scrape_gpa26():
     try:
         r = get_url("https://revente.gpa26.com/fr/")
         if not r: return []
         soup = BeautifulSoup(r.text, "html.parser")
         out = []
-        for link in soup.find_all("a", href=re.compile(r"/fr/\d{5,}"))[:25]:
+        ignores = 0
+        for link in soup.find_all("a", href=re.compile(r"/fr/\d{5,}"))[:40]:
             href = link["href"]
             m2 = re.search(r"/fr/(\d+)", href)
             if not m2: continue
             text = link.get_text(" ", strip=True)
+            if not text: continue
+            # Filtrer annonces vendues
+            if est_vendu(text, link):
+                ignores += 1
+                continue
             out.append(build("gpa_"+m2.group(1), "⚫ GPA26 Pro", text, extraire_prix(text), extraire_km(text), extraire_annee(text), "https://revente.gpa26.com"+href, "pro"))
-        log.info(f"   GPA26: {len(out)}"); return out
+        log.info(f"   GPA26: {len(out)} dispo ({ignores} vendus ignorés)"); return out
     except Exception as e: log.warning(f"GPA26: {e}"); return []
 
 def scrape_paruvendu():
@@ -1048,3 +1071,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+    
