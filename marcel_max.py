@@ -8,24 +8,26 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 # ══════════════════════════════════════════════════════════════
-# CONFIG — Toutes les variables Railway
+# CONFIG — Variables Railway
 # ══════════════════════════════════════════════════════════════
-TELEGRAM_TOKEN    = os.environ.get("TELEGRAM_TOKEN", "")
-TELEGRAM_CHAT_ID  = os.environ.get("TELEGRAM_CHAT_ID", "")
-ANTHROPIC_KEY     = os.environ.get("ANTHROPIC_KEY", "")
+TELEGRAM_TOKEN   = os.environ.get("TELEGRAM_TOKEN", "")
+TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "")
+ANTHROPIC_KEY    = os.environ.get("ANTHROPIC_KEY", "")
 
-# Email
-EMAIL_DEST        = os.environ.get("EMAIL_DEST", "rrprestigecar@hotmail.com")
-EMAIL_SMTP_USER   = os.environ.get("EMAIL_SMTP_USER", "")   # ton Gmail ex: moncompte@gmail.com
-EMAIL_SMTP_PASS   = os.environ.get("EMAIL_SMTP_PASS", "")   # mot de passe application Gmail
+NTFY_TOPIC       = os.environ.get("NTFY_TOPIC", "")
+NTFY_URL         = os.environ.get("NTFY_URL", "https://ntfy.sh")
+DISCORD_WEBHOOK  = os.environ.get("DISCORD_WEBHOOK", "")
+EMAIL_DEST       = os.environ.get("EMAIL_DEST", "rrprestigecar@hotmail.com")
+EMAIL_SMTP_USER  = os.environ.get("EMAIL_SMTP_USER", "")
+EMAIL_SMTP_PASS  = os.environ.get("EMAIL_SMTP_PASS", "")
 
-CHECK_INTERVAL    = int(os.environ.get("CHECK_INTERVAL", "45"))
-PRIX_MIN          = int(os.environ.get("PRIX_MIN", "500"))
-PRIX_MAX          = int(os.environ.get("PRIX_MAX", "15000"))
-KM_MIN            = int(os.environ.get("KM_MIN", "0"))
-KM_MAX            = int(os.environ.get("KM_MAX", "250000"))
-ANNEE_MIN         = int(os.environ.get("ANNEE_MIN", "2005"))
-ANNEE_MAX         = int(os.environ.get("ANNEE_MAX", "2025"))
+CHECK_INTERVAL   = int(os.environ.get("CHECK_INTERVAL", "30"))
+PRIX_MIN         = int(os.environ.get("PRIX_MIN", "500"))
+PRIX_MAX         = int(os.environ.get("PRIX_MAX", "15000"))
+KM_MIN           = int(os.environ.get("KM_MIN", "0"))
+KM_MAX           = int(os.environ.get("KM_MAX", "250000"))
+ANNEE_MIN        = int(os.environ.get("ANNEE_MIN", "2005"))
+ANNEE_MAX        = int(os.environ.get("ANNEE_MAX", "2025"))
 
 CARBURANTS_INCLUS = [c.strip().upper() for c in os.environ.get("CARBURANTS_INCLUS","").split(",") if c.strip()]
 CARBURANTS_EXCLUS = [c.strip().upper() for c in os.environ.get("CARBURANTS_EXCLUS","").split(",") if c.strip()]
@@ -35,63 +37,61 @@ MARQUES           = [m.strip().upper() for m in os.environ.get("MARQUES","").spl
 MARQUES_BLACKLIST = [m.strip().upper() for m in os.environ.get("MARQUES_BLACKLIST","MICROCAR,CHATENET,LIGIER,AIXAM,BELLIER").split(",") if m.strip()]
 MOTS_CLES         = [m.strip().lower() for m in os.environ.get("MOTS_CLES","").split(",") if m.strip()]
 
-SCORE_MIN         = int(os.environ.get("SCORE_MIN", "45"))
-MARGE_NETTE_MIN   = int(os.environ.get("MARGE_NETTE_MIN", "400"))
-DECOTE_MIN        = int(os.environ.get("DECOTE_MIN", "10"))
-SCORE_URGENTE     = int(os.environ.get("SCORE_URGENTE", "88"))
-
-COTISATIONS_AE    = float(os.environ.get("COTISATIONS_AE", "12.3"))
-TVA_MARGE         = os.environ.get("TVA_MARGE", "true").lower() == "true"
-RAPPORT_INTERVAL  = int(os.environ.get("RAPPORT_INTERVAL", "240"))
-MAX_WORKERS       = int(os.environ.get("MAX_WORKERS", "10"))
+SCORE_MIN        = int(os.environ.get("SCORE_MIN", "45"))
+MARGE_NETTE_MIN  = int(os.environ.get("MARGE_NETTE_MIN", "400"))
+DECOTE_MIN       = int(os.environ.get("DECOTE_MIN", "10"))
+SCORE_URGENTE    = int(os.environ.get("SCORE_URGENTE", "88"))
+COTISATIONS_AE   = float(os.environ.get("COTISATIONS_AE", "12.3"))
+TVA_MARGE        = os.environ.get("TVA_MARGE", "true").lower() == "true"
+RAPPORT_INTERVAL = int(os.environ.get("RAPPORT_INTERVAL", "240"))
+HEARTBEAT_MAX    = int(os.environ.get("HEARTBEAT_MAX", "30"))
+MAX_WORKERS      = int(os.environ.get("MAX_WORKERS", "10"))
 
 # ══════════════════════════════════════════════════════════════
-# PERSISTANCE — Railway Volume ou dossier local
+# PERSISTANCE
 # ══════════════════════════════════════════════════════════════
-DATA_DIR = Path(os.environ.get("RAILWAY_VOLUME_MOUNT_PATH", "/data") if os.path.exists(os.environ.get("RAILWAY_VOLUME_MOUNT_PATH", "/data")) else ".")
+_vol = os.environ.get("RAILWAY_VOLUME_MOUNT_PATH", "/data")
+DATA_DIR     = Path(_vol if os.path.exists(_vol) else ".")
 KNOWN_FILE   = DATA_DIR / "known_max.json"
 STATS_FILE   = DATA_DIR / "stats_max.json"
 PEPITES_FILE = DATA_DIR / "pepites_max.json"
-SUIVI_FILE   = DATA_DIR / "suivi_max.json"   # suivi prix en baisse
-CONFIG_FILE  = DATA_DIR / "config_max.json"  # config dynamique via Telegram
+SUIVI_FILE   = DATA_DIR / "suivi_max.json"
+CONFIG_FILE  = DATA_DIR / "config_max.json"
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s", datefmt="%H:%M:%S")
 log = logging.getLogger("MAX")
 
 # ══════════════════════════════════════════════════════════════
-# CONFIG DYNAMIQUE (modifiable via Telegram sans redéployer)
+# CONFIG DYNAMIQUE TELEGRAM
 # ══════════════════════════════════════════════════════════════
-_config_runtime = {}
+_cfg = {}
 
 def load_config_runtime():
-    global _config_runtime
+    global _cfg
     try:
-        with open(CONFIG_FILE) as f:
-            _config_runtime = json.load(f)
-    except:
-        _config_runtime = {}
+        with open(CONFIG_FILE) as f: _cfg = json.load(f)
+    except: _cfg = {}
 
 def save_config_runtime():
-    with open(CONFIG_FILE, "w") as f:
-        json.dump(_config_runtime, f, ensure_ascii=False)
+    try:
+        with open(CONFIG_FILE, "w") as f: json.dump(_cfg, f, ensure_ascii=False)
+    except Exception as e: log.warning(f"Config save: {e}")
 
-def cfg(key, default):
-    return _config_runtime.get(key, default)
-
-def is_paused():
-    return _config_runtime.get("paused", False)
+def cfg(key, default): return _cfg.get(key, default)
+def is_paused(): return _cfg.get("paused", False)
 
 # ══════════════════════════════════════════════════════════════
-# USER AGENTS
+# USER AGENTS + ANTI-BAN
 # ══════════════════════════════════════════════════════════════
 UA_LIST = [
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124.0.0.0 Safari/537.36",
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/123.0.0.0 Safari/537.36",
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:125.0) Gecko/20100101 Firefox/125.0",
     "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/122.0.0.0 Safari/537.36",
     "Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148 Safari/604.1",
 ]
 _ua = 0
+
 def get_headers():
     global _ua
     _ua = (_ua + 1) % len(UA_LIST)
@@ -104,9 +104,6 @@ def get_headers():
         "Referer": "https://www.google.fr/",
     }
 
-# ══════════════════════════════════════════════════════════════
-# ANTI-BAN : get_url avec retry + backoff + délai aléatoire
-# ══════════════════════════════════════════════════════════════
 def get_url(url, timeout=15, retries=3, delay_min=1.0, delay_max=3.5):
     for attempt in range(retries):
         try:
@@ -114,63 +111,81 @@ def get_url(url, timeout=15, retries=3, delay_min=1.0, delay_max=3.5):
             r = requests.get(url, headers=get_headers(), timeout=timeout)
             if r.status_code == 429:
                 wait = 10 * (attempt + 1)
-                log.warning(f"Rate limited ({url[:50]}) — attente {wait}s")
-                time.sleep(wait)
-                continue
+                log.warning(f"Rate limited — attente {wait}s")
+                time.sleep(wait); continue
             if r.status_code in (403, 503):
-                log.warning(f"Bloqué {r.status_code} ({url[:50]}) — tentative {attempt+1}/{retries}")
-                time.sleep(5 * (attempt + 1))
-                continue
+                log.warning(f"Bloqué {r.status_code} — tentative {attempt+1}/{retries}")
+                time.sleep(5 * (attempt + 1)); continue
             r.raise_for_status()
             return r
         except requests.exceptions.Timeout:
             log.warning(f"Timeout ({url[:50]}) — tentative {attempt+1}/{retries}")
             time.sleep(3 * (attempt + 1))
         except Exception as e:
-            log.warning(f"Erreur réseau ({url[:50]}): {e}")
+            log.warning(f"Réseau ({url[:50]}): {e}")
             time.sleep(2 * (attempt + 1))
     return None
+
+# ══════════════════════════════════════════════════════════════
+# VÉRIFICATION STOCK EN TEMPS RÉEL
+# ══════════════════════════════════════════════════════════════
+MOTS_INDISPO = [
+    "cette annonce n'est plus disponible", "annonce expirée", "annonce supprimée",
+    "vendu", "sold", "this listing is no longer", "introuvable", "page not found",
+    "lot terminé", "vente terminée", "adjugé", "plus disponible", "retiré"
+]
+
+def verifier_stock(a):
+    try:
+        r = get_url(a["url"], timeout=8, retries=1, delay_min=0.3, delay_max=0.8)
+        if not r: return True
+        texte = r.text.lower()
+        if any(m in texte for m in MOTS_INDISPO):
+            log.info(f"   ⏭  Stock épuisé : {a['titre'][:40]}")
+            return False
+        return True
+    except:
+        return True
 
 # ══════════════════════════════════════════════════════════════
 # BASE MOTEURS
 # ══════════════════════════════════════════════════════════════
 MOTEURS_DB = {
-    "EP6|1.6 THP|PRINCE":           (-30, 2,  "Chaîne distrib fragile → casse 1500-3000€. Fuyez avant 2016."),
-    "1.2 TCE 115|1.2 TCE 120":      (-20, 3,  "Joint culasse fréquent → 800-2000€. Rappels constructeur 2014-2018."),
-    "N47|116D|118D|120D|2.0D BMW":  (-30, 2,  "Chaîne côté boîte → dépose moteur 3000-5000€. Bannir absolument."),
-    "N20":                           (-15, 4,  "Chaîne BMW côté boîte + pompe eau plastique. Risqué."),
-    "OM651|220 CDI|200 CDI MERC":   (-20, 3,  "Injecteurs Piezo + swirl flaps catastrophiques → 2000-5000€."),
-    "M271|KOMPRESSOR":               (-10, 5,  "Chaîne côté boîte Mercedes. Vérifier bruit démarrage."),
-    "1.4 TSI DSG|CAXA|CTHD":        (-20, 3,  "DSG7 embrayage sec défaillant → 700-2000€. Éviter DSG7."),
-    "2.0 TFSI|BWE|BWT|AXX":         (-15, 4,  "Consommation huile 1L/1000km anormale. Recours collectif USA."),
-    "TWINAIR|875CC|0.9 TWINAIR":    (-25, 2,  "Catastrophe absolue. Courroie 3ans, vibrations, consommation × 2."),
-    "1.0 ECOBOOST|FOXON":           (-15, 4,  "Joint culasse avant 2016 → 800-1500€. OK après 2017."),
-    "DV6|1.6 HDI 90|1.6 HDI 92":   (-10, 5,  "EGR + FAP coûteux usage ville. Route = correct."),
-    "1.2 PURETECH|EB2|EB4":         (-15, 4,  "Courroie bain huile se dégrade → casse moteur. OK après 2019."),
-    "2.0 TDI M9R|2.0 DCI LAG":     (-10, 5,  "Injecteurs Siemens fragiles >150k. Éviter >200 000km."),
-    "A16DTH|1.6 CDTI OPEL":        (-8,  5,  "Chaîne Opel problématique. Vérifier bruit démarrage."),
-    "1.4 T-JET":                    (-5,  5,  "Courroie obligatoire 60 000km. Turbine 170ch fragile."),
-    "K9K|1.5 DCI|1.5DCI":          (+20, 9,  "MEILLEUR diesel du marché. Taxis 400 000km. Achetez les yeux fermés."),
-    "2ZR-FXE|HYBRID TOYOTA|YARIS H|AURIS H|COROLLA H|PRIUS": (+25, 10, "Légendaire. Taxis 600 000km. Batterie dure 300k. PÉPITE ABSOLUE."),
-    "1NZ-FE|1.5 VVTI TOYOTA":      (+18, 9,  "Toyota increvable. JD Power N°1 fiabilité."),
-    "1.9 TDI|ALH|AXR|AGR":         (+18, 9,  "Légendaire VW. 500 000km réguliers. Le meilleur diesel VW."),
-    "2.0 TDI CFHC|2.0 TDI 2009":   (+12, 7,  "Bon TDI après 2009. Solide si entretien suivi."),
-    "K4M|K4J|1.6 16V RENAULT":     (+15, 8,  "Excellent moteur atmosphérique Renault. Simple et fiable."),
-    "1.3 MULTIJET|MULTIJET 75":    (+12, 8,  "Meilleur petit diesel Fiat. Fiable et économique."),
-    "R18A|1.8 VTEC HONDA":         (+18, 9,  "Honda 400 000km sans problème. Fiabilité japonaise absolue."),
-    "G4FA|1.2 MPI HYUNDAI":        (+15, 8,  "Coréens très fiables depuis 2010. Progression constante."),
-    "U2|1.6 CRDI KIA|1.6 CRDI HYU":(+10, 7,  "Bon diesel coréen. Fiabilité correcte."),
-    "HR16|1.6 NISSAN|MR20":        (+15, 8,  "Nissan fiable. Peu de problèmes connus."),
-    "K12B|1.2 SUZUKI SWIFT":       (+15, 8,  "Suzuki Swift = pépite légère et fiable. 300 000km rapportés."),
-    "DW10|2.0 HDI|BLUEHDI 150":    (+5,  7,  "Bon diesel PSA. Fiable si entretien. FAP à surveiller."),
-    "1.6 TDI VW|CLHB|CAYC":       (+10, 7,  "Bon petit TDI VW. Économique et fiable."),
-    "HR15DE|1.5 DCI NISSAN":       (+12, 8,  "Petit diesel Nissan fiable. Peu de problèmes."),
+    "EP6|1.6 THP|PRINCE":           (-30, 2, "Chaîne distrib fragile → casse 1500-3000€. Fuyez avant 2016."),
+    "1.2 TCE 115|1.2 TCE 120":      (-20, 3, "Joint culasse fréquent → 800-2000€. Rappels 2014-2018."),
+    "N47|116D|118D|120D|2.0D BMW":  (-30, 2, "Chaîne côté boîte → dépose moteur 3000-5000€. Bannir."),
+    "N20":                           (-15, 4, "Chaîne BMW côté boîte + pompe eau plastique. Risqué."),
+    "OM651|220 CDI|200 CDI MERC":   (-20, 3, "Injecteurs Piezo + swirl flaps → 2000-5000€."),
+    "M271|KOMPRESSOR":               (-10, 5, "Chaîne côté boîte Mercedes. Vérifier bruit démarrage."),
+    "1.4 TSI DSG|CAXA|CTHD":        (-20, 3, "DSG7 embrayage sec défaillant → 700-2000€."),
+    "2.0 TFSI|BWE|BWT|AXX":         (-15, 4, "Consommation huile 1L/1000km. Recours collectif USA."),
+    "TWINAIR|875CC|0.9 TWINAIR":    (-25, 2, "Catastrophe. Courroie 3ans, vibrations, conso × 2."),
+    "1.0 ECOBOOST|FOXON":           (-15, 4, "Joint culasse avant 2016 → 800-1500€. OK après 2017."),
+    "DV6|1.6 HDI 90|1.6 HDI 92":   (-10, 5, "EGR + FAP coûteux ville. Route = correct."),
+    "1.2 PURETECH|EB2|EB4":         (-15, 4, "Courroie bain huile → casse moteur. OK après 2019."),
+    "2.0 TDI M9R|2.0 DCI LAG":     (-10, 5, "Injecteurs Siemens fragiles >150k."),
+    "A16DTH|1.6 CDTI OPEL":        (-8,  5, "Chaîne Opel problématique. Vérifier bruit démarrage."),
+    "1.4 T-JET":                    (-5,  5, "Courroie obligatoire 60 000km. Turbine 170ch fragile."),
+    "K9K|1.5 DCI|1.5DCI":          (+20, 9, "MEILLEUR diesel. Taxis 400 000km. Yeux fermés."),
+    "2ZR-FXE|HYBRID TOYOTA|YARIS H|AURIS H|COROLLA H|PRIUS": (+25, 10, "Légendaire. 600 000km. PÉPITE ABSOLUE."),
+    "1NZ-FE|1.5 VVTI TOYOTA":      (+18, 9, "Toyota increvable. JD Power N°1 fiabilité."),
+    "1.9 TDI|ALH|AXR|AGR":         (+18, 9, "Légendaire VW. 500 000km réguliers."),
+    "2.0 TDI CFHC|2.0 TDI 2009":   (+12, 7, "Bon TDI après 2009. Solide si entretien."),
+    "K4M|K4J|1.6 16V RENAULT":     (+15, 8, "Excellent atmosphérique Renault. Simple et fiable."),
+    "1.3 MULTIJET|MULTIJET 75":    (+12, 8, "Meilleur petit diesel Fiat. Fiable et éco."),
+    "R18A|1.8 VTEC HONDA":         (+18, 9, "Honda 400 000km. Fiabilité japonaise absolue."),
+    "G4FA|1.2 MPI HYUNDAI":        (+15, 8, "Coréens très fiables depuis 2010."),
+    "U2|1.6 CRDI KIA|1.6 CRDI HYU":(+10, 7, "Bon diesel coréen. Fiabilité correcte."),
+    "HR16|1.6 NISSAN|MR20":        (+15, 8, "Nissan fiable. Peu de problèmes connus."),
+    "K12B|1.2 SUZUKI SWIFT":       (+15, 8, "Suzuki Swift = pépite légère. 300 000km rapportés."),
+    "DW10|2.0 HDI|BLUEHDI 150":    (+5,  7, "Bon diesel PSA. Fiable si entretien. FAP à surveiller."),
+    "1.6 TDI VW|CLHB|CAYC":       (+10, 7, "Bon petit TDI VW. Économique et fiable."),
+    "HR15DE|1.5 DCI NISSAN":       (+12, 8, "Petit diesel Nissan fiable. Peu de problèmes."),
 }
 
 def analyser_moteur(titre):
     titre_up = titre.upper()
-    best = None
-    best_len = 0
+    best, best_len = None, 0
     for cles, (score, fid, conseil) in MOTEURS_DB.items():
         for cle in cles.split("|"):
             cle = cle.strip()
@@ -182,21 +197,21 @@ def analyser_moteur(titre):
 # ══════════════════════════════════════════════════════════════
 # DÉTECTION CARBURANT / BOÎTE
 # ══════════════════════════════════════════════════════════════
-_DIESEL    = ["TDI","HDI","DCI","CDTI","TDCI","BLUEHDI","MULTIJET","CRDI","D4D","SDI","2.0D","1.5D","1.6D","1.9D","DIESEL"]
-_HYBRIDE   = ["HYBRID","HYBRIDE","HEV","PHEV","E-HYBRID","RECHARGEABLE","PLUG-IN"]
-_ELECTRIQUE= ["ELECTRIQUE","ELECTRIC","EV","BEV","ZOE","LEAF","IONIQ","E-TRON","MODEL 3","MEGANE E"]
-_ESSENCE   = ["TSI","VTI","GTI","TFSI","TCE","PURETECH","MPI","16V","TURBO","ESSENCE","1.0","1.2","1.4","1.6 E","1.8","2.0 E"]
-_GPL       = ["GPL","LPG","BIFUEL"]
-_ETHANOL   = ["E85","ETHANOL","FLEX","FLEXFUEL"]
-_DSG       = ["DSG","S-TRONIC","PDK"]
-_EDC       = ["EDC","DCT","POWERSHIFT","EAT6","EAT8"]
-_CVT       = ["CVT","XTRONIC","MULTITRONIC","LINEARTRONIC"]
-_ROBOT     = ["ROBOTISEE","ROBOTISÉE","AMT","EASYTRONIC","SENSODRIVE"]
-_AUTO      = ["AUTOMATIQUE","BVA","TIPTRONIC","AUTO "]
-_MANUELLE  = ["MANUELLE","BVM","BV5","BV6","MT ","BOITE MANUELLE"]
+_DIESEL     = ["TDI","HDI","DCI","CDTI","TDCI","BLUEHDI","MULTIJET","CRDI","D4D","SDI","2.0D","1.5D","1.6D","1.9D","DIESEL"]
+_HYBRIDE    = ["HYBRID","HYBRIDE","HEV","PHEV","E-HYBRID","RECHARGEABLE","PLUG-IN"]
+_ELECTRIQUE = ["ELECTRIQUE","ELECTRIC","EV","BEV","ZOE","LEAF","IONIQ","E-TRON","MODEL 3","MEGANE E"]
+_ESSENCE    = ["TSI","VTI","GTI","TFSI","TCE","PURETECH","MPI","16V","TURBO","ESSENCE","1.0","1.2","1.4","1.6 E","1.8","2.0 E"]
+_GPL        = ["GPL","LPG","BIFUEL"]
+_ETHANOL    = ["E85","ETHANOL","FLEX","FLEXFUEL"]
+_DSG        = ["DSG","S-TRONIC","PDK"]
+_EDC        = ["EDC","DCT","POWERSHIFT","EAT6","EAT8"]
+_CVT        = ["CVT","XTRONIC","MULTITRONIC","LINEARTRONIC"]
+_ROBOT      = ["ROBOTISEE","ROBOTISÉE","AMT","EASYTRONIC","SENSODRIVE"]
+_AUTO       = ["AUTOMATIQUE","BVA","TIPTRONIC","AUTO "]
+_MANUELLE   = ["MANUELLE","BVM","BV5","BV6","MT ","BOITE MANUELLE"]
 
-def detecter_carburant(titre):
-    t = titre.upper()
+def detecter_carburant(t):
+    t = t.upper()
     if any(m in t for m in _ELECTRIQUE): return "ELECTRIQUE"
     if any(m in t for m in _HYBRIDE):    return "HYBRIDE"
     if any(m in t for m in _GPL):        return "GPL"
@@ -205,22 +220,21 @@ def detecter_carburant(titre):
     if any(m in t for m in _ESSENCE):    return "ESSENCE"
     return "?"
 
-def detecter_boite(titre):
-    t = titre.upper()
-    if any(m in t for m in _DSG):     return "DSG"
-    if any(m in t for m in _EDC):     return "EDC"
-    if any(m in t for m in _CVT):     return "CVT"
-    if any(m in t for m in _ROBOT):   return "ROBOTISEE"
-    if any(m in t for m in _AUTO):    return "AUTOMATIQUE"
-    if any(m in t for m in _MANUELLE):return "MANUELLE"
+def detecter_boite(t):
+    t = t.upper()
+    if any(m in t for m in _DSG):      return "DSG"
+    if any(m in t for m in _EDC):      return "EDC"
+    if any(m in t for m in _CVT):      return "CVT"
+    if any(m in t for m in _ROBOT):    return "ROBOTISEE"
+    if any(m in t for m in _AUTO):     return "AUTOMATIQUE"
+    if any(m in t for m in _MANUELLE): return "MANUELLE"
     return "?"
 
 # ══════════════════════════════════════════════════════════════
 # FISCAL AE
 # ══════════════════════════════════════════════════════════════
 def calcul_ae(achat, revente):
-    if revente <= achat:
-        return {"brute":0,"tva":0,"cot":0,"nette":0,"roi":0}
+    if revente <= achat: return {"brute":0,"tva":0,"cot":0,"nette":0,"roi":0}
     brute = revente - achat
     tva   = round(brute / 1.20 * 0.20) if TVA_MARGE else 0
     cot   = round(revente * COTISATIONS_AE / 100)
@@ -229,7 +243,7 @@ def calcul_ae(achat, revente):
     return {"brute":brute,"tva":tva,"cot":cot,"nette":nette,"roi":roi}
 
 # ══════════════════════════════════════════════════════════════
-# SCORING
+# SCORING /100
 # ══════════════════════════════════════════════════════════════
 MODELES_BONUS = {
     "YARIS HYBRID":25,"COROLLA HYBRID":25,"AURIS HYBRID":22,"PRIUS":22,
@@ -263,14 +277,18 @@ def scorer(a):
     t_up  = a["titre"].upper()
     t_low = a["titre"].lower()
     detail = {}
+
     for m, b in MODELES_BONUS.items():
         if m in t_up:
             score += b; detail["modèle"] = f"+{b}pts ({m})"; break
+
     mot = analyser_moteur(a["titre"])
     if mot:
         score += mot[1]; detail["moteur"] = f"{mot[1]:+d}pts ({mot[0][:20]})"
+
     bs = {"enchere_etat":25,"enchere":15,"pro":10,"occasion":0}.get(a.get("type",""),0)
     if bs: score += bs; detail["source"] = f"+{bs}pts ({a['type']})"
+
     km = a.get("km",0)
     if km > 0:
         if km < 50000:    b=18
@@ -280,6 +298,7 @@ def scorer(a):
         elif km < 200000: b=2
         else:             b=-12
         score += b; detail["km"] = f"{b:+d}pts ({km:,}km)".replace(",",".")
+
     an = a.get("annee",0)
     if an > 0:
         age = 2024 - an
@@ -289,25 +308,31 @@ def scorer(a):
         elif age <= 15: b=4
         else:           b=-8
         score += b; detail["année"] = f"{b:+d}pts ({an})"
+
     carb = a.get("_carburant","?")
     cb = {"HYBRIDE":10,"ELECTRIQUE":8,"DIESEL":5,"GPL":3,"ESSENCE":2}.get(carb,0)
     if cb: score += cb; detail["carburant"] = f"+{cb}pts ({carb})"
+
     boite = a.get("_boite","?")
     bb = {"AUTOMATIQUE":8,"MANUELLE":3,"DSG":-8,"EDC":-5,"CVT":-3,"ROBOTISEE":-6}.get(boite,0)
     if bb: score += bb; detail["boîte"] = f"{bb:+d}pts ({boite})"
+
     for mot in MOTS_SUSPECTS:
         if mot in t_low:
             score -= 25; detail["⚠️suspect"] = f"-25pts ({mot})"; break
+
     bp = 0
     for mot in MOTS_POSITIFS:
-        if mot in t_low and bp < 15:
-            bp += 3
+        if mot in t_low and bp < 15: bp += 3
     if bp: score += bp; detail["positifs"] = f"+{bp}pts"
+
+    if a.get("_cg_incluse"): score += 5; detail["CG"] = "+5pts"
+
     a["_detail_score"] = detail
     return max(0, min(100, score))
 
 # ══════════════════════════════════════════════════════════════
-# STOCKAGE
+# STOCKAGE — protégé contre corruption
 # ══════════════════════════════════════════════════════════════
 def load_json(f, default):
     try:
@@ -315,7 +340,11 @@ def load_json(f, default):
     except: return default
 
 def save_json(f, data):
-    with open(f,"w") as fp: json.dump(data, fp, ensure_ascii=False)
+    try:
+        tmp = str(f) + ".tmp"
+        with open(tmp, "w") as fp: json.dump(data, fp, ensure_ascii=False)
+        os.replace(tmp, f)
+    except Exception as e: log.warning(f"Save {f}: {e}")
 
 def load_known():    return set(load_json(KNOWN_FILE, []))
 def save_known(s):   save_json(KNOWN_FILE, list(s)[-10000:])
@@ -356,44 +385,63 @@ def extraire_annee(t):
         except: pass
     return 0
 
-def normaliser_titre(t):
+def normaliser(t):
     t = t.lower()
     t = ''.join(c for c in unicodedata.normalize('NFD', t) if unicodedata.category(c) != 'Mn')
-    t = re.sub(r'\s+', ' ', t).strip()
-    return t
+    return re.sub(r'\s+', ' ', t).strip()
 
 def hid(s): return hashlib.md5(s.encode()).hexdigest()[:10]
 
 def build(id, src, titre, prix, km, annee, url, typ="occasion"):
-    a = {"id":id,"source":src,"titre":titre[:120],"prix":prix,"km":km,"annee":annee,"url":url,"type":typ}
-    a["_carburant"] = detecter_carburant(titre)
-    a["_boite"]     = detecter_boite(titre)
-    a["_titre_norm"] = normaliser_titre(titre)
+    a = {"id":id,"source":src,"titre":titre[:120],"prix":prix,"km":km,
+         "annee":annee,"url":url,"type":typ}
+    a["_carburant"]   = detecter_carburant(titre)
+    a["_boite"]       = detecter_boite(titre)
+    a["_titre_norm"]  = normaliser(titre)
+    a["_cg_incluse"]  = False
     return a
 
+# ══════════════════════════════════════════════════════════════
+# FILTRE ANNONCES VENDUES
+# ══════════════════════════════════════════════════════════════
+MOTS_VENDU = ["vendu","sold","indisponible","réservé","reserve",
+               "plus disponible","retiré","retire"]
+
+def est_vendu(texte, soup_item=None):
+    t = texte.lower()
+    if any(m in t for m in MOTS_VENDU): return True
+    if soup_item:
+        classes = " ".join(soup_item.get("class", [])).lower()
+        if any(m in classes for m in ["sold","vendu","unavailable","disabled"]): return True
+        parent = soup_item.parent
+        if parent:
+            pc = " ".join(parent.get("class", [])).lower()
+            if any(m in pc for m in ["sold","vendu","unavailable","disabled"]): return True
+    return False
+
 def matches_filter(a):
-    prix_min = cfg("prix_min", PRIX_MIN)
-    prix_max = cfg("prix_max", PRIX_MAX)
-    km_max   = cfg("km_max", KM_MAX)
-    # Ignorer annonces vendues/indisponibles
     if est_vendu(a["titre"]): return False
-    if a["prix"]  > 0 and a["prix"]  < prix_min:  return False
-    if a["prix"]  > 0 and a["prix"]  > prix_max:  return False
-    if a["km"]    > 0 and a["km"]    < KM_MIN:    return False
-    if a["km"]    > 0 and a["km"]    > km_max:    return False
+    px_min = cfg("prix_min", PRIX_MIN)
+    px_max = cfg("prix_max", PRIX_MAX)
+    km_max = cfg("km_max", KM_MAX)
+    if px_max <= 0: px_max = PRIX_MAX  # Protection contre prix_max=0
+    if a["prix"]  > 0 and a["prix"]  < px_min:  return False
+    if a["prix"]  > 0 and a["prix"]  > px_max:  return False
+    if a["km"]    > 0 and a["km"]    < KM_MIN:  return False
+    if a["km"]    > 0 and a["km"]    > km_max:  return False
     if a["annee"] > 0 and a["annee"] < ANNEE_MIN: return False
     if a["annee"] > 0 and a["annee"] > ANNEE_MAX: return False
     t = a["titre"].upper()
     marques = cfg("marques", MARQUES)
     if marques and not any(m in t for m in marques): return False
-    if any(m in t for m in MARQUES_BLACKLIST):        return False
+    if any(m in t for m in MARQUES_BLACKLIST): return False
     if MOTS_CLES and not any(k in a["titre"].lower() for k in MOTS_CLES): return False
     carb = a.get("_carburant","?")
     if CARBURANTS_INCLUS and carb not in CARBURANTS_INCLUS and carb != "?": return False
     if CARBURANTS_EXCLUS and carb in CARBURANTS_EXCLUS: return False
     boite = a.get("_boite","?")
     if BOITES_INCLUSES and boite not in BOITES_INCLUSES and boite != "?": return False
-    if BOITES_EXCLUES  and boite in BOITES_EXCLUES:  return False
+    if BOITES_EXCLUES  and boite in BOITES_EXCLUES: return False
     return True
 
 # ══════════════════════════════════════════════════════════════
@@ -408,15 +456,41 @@ def checker_baisse_prix(a, suivi):
         if ancien > 0 and prix_actuel < ancien:
             baisse_pct = round((ancien - prix_actuel) / ancien * 100, 1)
             if baisse_pct >= 5:
-                send(
-                    f"📉 <b>BAISSE DE PRIX DÉTECTÉE !</b>\n"
+                msg = (
+                    f"📉 <b>BAISSE DE PRIX !</b>\n"
                     f"🚘 {a['titre'][:60]}\n"
-                    f"💶 Ancien : <b>{ancien:,}€</b> → Nouveau : <b>{prix_actuel:,}€</b>\n".replace(",",".") +
-                    f"📉 Baisse : <b>-{baisse_pct}% (-{ancien-prix_actuel:,}€)</b>\n".replace(",",".") +
+                    f"💶 {ancien:,}€ → <b>{prix_actuel:,}€</b> (-{baisse_pct}%)\n".replace(",",".") +
                     f"📍 {a['source']}\n"
-                    f"🔗 <a href='{url}'>👉 Voir l'annonce →</a>"
+                    f"🔗 <a href='{url}'>👉 Voir →</a>"
                 )
+                send(msg)
+                send_ntfy(f"📉 Baisse {baisse_pct}% — {a['titre'][:50]}",
+                          f"{ancien}€ → {prix_actuel}€\n{url}")
+                send_discord(f"📉 Baisse de prix — {a['titre'][:60]}",
+                             f"**{ancien}€ → {prix_actuel}€** (-{baisse_pct}%)\n{url}")
     suivi[url] = {"prix": prix_actuel, "titre": a["titre"][:60], "date": datetime.now().isoformat()}
+
+# ══════════════════════════════════════════════════════════════
+# GPA26 — vérification détail
+# ══════════════════════════════════════════════════════════════
+def gpa26_check_detail(url_detail):
+    try:
+        r = get_url(url_detail, timeout=10, delay_min=0.5, delay_max=1.5)
+        if not r: return False, False
+        texte = r.text.lower()
+        soup  = BeautifulSoup(r.text, "html.parser")
+        tp    = soup.get_text(" ", strip=True).lower()
+        vendu_part = any(m in tp for m in [
+            "vendu à un particulier","vendu particulier","cédé à un particulier",
+            "vendu en l'état","vendu sans garantie","vente directe particulier"
+        ])
+        carte_grise = any(m in tp for m in [
+            "carte grise","carte grise incluse","carte grise remise",
+            "cg incluse","titre de circulation","certificat d'immatriculation"
+        ])
+        return vendu_part, carte_grise
+    except:
+        return False, False
 
 # ══════════════════════════════════════════════════════════════
 # SCRAPERS — 18 SOURCES
@@ -432,8 +506,9 @@ def _parse(url, pattern, base, src, typ, limit=25):
         text = item.get_text(" ", strip=True)
         if len(text) < 5: continue
         full = base + href if href.startswith("/") else href
-        aid  = hid(href)
-        annonces.append(build(f"{src[:3]}_{aid}", src, text, extraire_prix(text), extraire_km(text), extraire_annee(text), full, typ))
+        annonces.append(build(f"{src[:3]}_{hid(href)}", src, text,
+                              extraire_prix(text), extraire_km(text),
+                              extraire_annee(text), full, typ))
     return annonces
 
 def scrape_alcopa():
@@ -584,87 +659,35 @@ def scrape_reezocar():
         log.info(f"   Reezocar: {len(out)}"); return out
     except Exception as e: log.warning(f"Reezocar: {e}"); return []
 
-MOTS_VENDU = ["vendu","sold","indisponible","réservé","reserve","plus disponible","retiré","retire"]
-
-def est_vendu(texte, soup_item=None):
-    t = texte.lower()
-    if any(m in t for m in MOTS_VENDU): return True
-    if soup_item:
-        # Chercher classes ou attributs indiquant vendu
-        classes = " ".join(soup_item.get("class", [])).lower()
-        if any(m in classes for m in ["sold","vendu","unavailable","disabled"]): return True
-        parent = soup_item.parent
-        if parent:
-            parent_classes = " ".join(parent.get("class", [])).lower()
-            if any(m in parent_classes for m in ["sold","vendu","unavailable","disabled"]): return True
-    return False
-
-def gpa26_check_detail(url_detail):
-    """
-    Vérifie la page détail GPA26 :
-    - Retourne (vendu_particulier, carte_grise) booleans
-    - vendu_particulier = True si "vendu à un particulier" détecté
-    - carte_grise = True si carte grise incluse / remise avec le véhicule
-    """
-    try:
-        r = get_url(url_detail, timeout=10, delay_min=0.5, delay_max=1.5)
-        if not r: return False, False
-        soup = BeautifulSoup(r.text, "html.parser")
-        texte_page = soup.get_text(" ", strip=True).lower()
-
-        vendu_part = any(m in texte_page for m in [
-            "vendu à un particulier", "vendu particulier", "cédé à un particulier",
-            "vendu en l'état", "vendu sans garantie", "vente directe particulier"
-        ])
-        carte_grise = any(m in texte_page for m in [
-            "carte grise", "carte grise incluse", "carte grise remise",
-            "cg incluse", "titre de circulation", "certificat d'immatriculation"
-        ])
-        return vendu_part, carte_grise
-    except:
-        return False, False
-
 def scrape_gpa26():
     try:
         r = get_url("https://revente.gpa26.com/fr/")
         if not r: return []
         soup = BeautifulSoup(r.text, "html.parser")
-        out = []
-        ignores = 0
+        out, ignores = [], 0
         for link in soup.find_all("a", href=re.compile(r"/fr/\d{5,}"))[:40]:
             href = link["href"]
             m2 = re.search(r"/fr/(\d+)", href)
             if not m2: continue
             text = link.get_text(" ", strip=True)
             if not text: continue
-            # Filtrer annonces vendues (titre)
             if est_vendu(text, link):
-                ignores += 1
-                continue
-
+                ignores += 1; continue
             url_full = "https://revente.gpa26.com" + href
             annonce = build("gpa_"+m2.group(1), "⚫ GPA26 Pro", text,
-                            extraire_prix(text), extraire_km(text), extraire_annee(text),
-                            url_full, "pro")
-
-            # Vérifier page détail : vendu particulier + carte grise
+                            extraire_prix(text), extraire_km(text),
+                            extraire_annee(text), url_full, "pro")
             vendu_part, cg = gpa26_check_detail(url_full)
-
             if vendu_part:
                 ignores += 1
-                log.info(f"   GPA26 ignoré (vendu particulier) : {text[:40]}")
+                log.info(f"   GPA26 ignoré (particulier) : {text[:40]}")
                 continue
-
-            # Bonus carte grise dans le titre enrichi
             if cg:
-                annonce["titre"] = annonce["titre"] + " [CG incluse]"
+                annonce["titre"] += " [CG incluse]"
                 annonce["_cg_incluse"] = True
-                log.info(f"   GPA26 ✅ carte grise incluse : {text[:40]}")
-
+                log.info(f"   GPA26 ✅ CG incluse : {text[:40]}")
             out.append(annonce)
-
-        log.info(f"   GPA26: {len(out)} dispo ({ignores} ignorés — vendus/particuliers)")
-        return out
+        log.info(f"   GPA26: {len(out)} dispo ({ignores} ignorés)"); return out
     except Exception as e: log.warning(f"GPA26: {e}"); return []
 
 def scrape_paruvendu():
@@ -719,61 +742,55 @@ def scan_tout():
             except Exception as e: log.warning(f"Scraper: {e}")
     return out
 
-# ══════════════════════════════════════════════════════════════
-# DÉDUPLICATION CROSS-SOURCE (titre + prix)
-# ══════════════════════════════════════════════════════════════
 def dedup_cross_source(annonces):
-    vus = {}
-    out = []
+    vus, out = {}, []
     for a in annonces:
         cle = f"{a['_titre_norm'][:40]}_{a['prix']}"
         if cle not in vus:
-            vus[cle] = True
-            out.append(a)
+            vus[cle] = True; out.append(a)
     return out
 
 # ══════════════════════════════════════════════════════════════
-# ANALYSE IA
+# ANALYSE IA — Gemini gratuit
 # ══════════════════════════════════════════════════════════════
 def analyser_ia(a, score_pre):
     if not ANTHROPIC_KEY: return None
     mot = analyser_moteur(a["titre"])
     infos_moteur = ""
     if mot:
-        infos_moteur = f"\nMOTEUR IDENTIFIÉ : {mot[0]}\nFiabilité : {mot[1]}/10\nConseil expert : {mot[3]}"
+        infos_moteur = f"\nMOTEUR : {mot[0]} | Fiabilité {mot[1]}/10\nConseil : {mot[3]}"
     type_label = {
-        "enchere":      "ENCHÈRE — prix marteau 30-50% sous marché souvent",
-        "enchere_etat": "ENCHÈRE JUDICIAIRE/ÉTAT — mise à prix très basse, peu de concurrence",
-        "pro":          "VENTE PRO — véhicule traçable, historique dispo",
+        "enchere":      "ENCHÈRE — 30-50% sous marché",
+        "enchere_etat": "ENCHÈRE JUDICIAIRE — mise à prix très basse",
+        "pro":          "VENTE PRO — historique dispo",
         "occasion":     "OCCASION particulier ou pro",
     }.get(a.get("type",""), "")
-    prix_min_eff = cfg("prix_min", PRIX_MIN)
-    prix_max_eff = cfg("prix_max", PRIX_MAX)
-    marge_min    = cfg("marge_min", MARGE_NETTE_MIN)
-    decote_min   = cfg("decote_min", DECOTE_MIN)
+    marge_min  = cfg("marge_min", MARGE_NETTE_MIN)
+    decote_min = cfg("decote_min", DECOTE_MIN)
+    px_max     = cfg("prix_max", PRIX_MAX)
     prompt = f"""Tu es MAX, expert automobile achat-revente. Tu connais L'Argus par coeur.
 ANNONCE :
 Titre: {a['titre']}
-Prix demandé: {a['prix']}€ | Km: {a['km'] or '?'} | Année: {a['annee'] or '?'}
+Prix: {a['prix']}€ | Km: {a['km'] or '?'} | Année: {a['annee'] or '?'}
 Carburant: {a.get('_carburant','?')} | Boîte: {a.get('_boite','?')}
 Source: {a['source']} — {type_label}
-Pré-score MAX: {score_pre}/100
+Pré-score: {score_pre}/100
 {infos_moteur}
+CG incluse: {a.get('_cg_incluse', False)}
 
-CADRE FINANCIER AE :
-- Budget max: {prix_max_eff}€ | Cotisations AE: {COTISATIONS_AE}% | TVA marge: {TVA_MARGE}
-- Marge nette min: {marge_min}€ | Décote min vs Argus: {decote_min}%
+CADRE AE : Budget max {px_max}€ | AE {COTISATIONS_AE}% | TVA marge {TVA_MARGE}
+Marge nette min {marge_min}€ | Décote min {decote_min}%
 
 RÈGLE : pépite seulement si prix < Argus -{decote_min}% ET marge nette ≥ {marge_min}€.
 
 Réponds UNIQUEMENT en JSON valide :
-{{"score":<0-100>,"est_pepite":<bool>,"verdict":"<label>","prix_argus":<€>,"decote_pct":<int>,"economies_argus":<€>,"prix_revente_bas":<€>,"prix_revente_haut":<€>,"marge_brute":<€>,"tva_marge":<€>,"cotisations_ae":<€>,"marge_nette":<€>,"roi":<float>,"prix_achat_max":<€>,"delai_revente":"<durée>","points_forts":"<3 args>","risques":"<risques chiffrés>","negociation":"<tactique>","verifications":"<5 points>","conseil_max":"<1 phrase>","urgence":<bool>}}"""
+{{"score":<0-100>,"est_pepite":<bool>,"verdict":"<label>","prix_argus":<€>,"decote_pct":<int>,"economies_argus":<€>,"prix_revente_bas":<€>,"prix_revente_haut":<€>,"marge_brute":<€>,"tva_marge":<€>,"cotisations_ae":<€>,"marge_nette":<€>,"roi":<float>,"prix_achat_max":<€>,"delai_revente":"<durée>","points_forts":"<3 args>","risques":"<risques>","negociation":"<tactique>","verifications":"<5 points>","conseil_max":"<1 phrase>","urgence":<bool>}}"""
     try:
         r = requests.post(
             f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={ANTHROPIC_KEY}",
             headers={"Content-Type":"application/json"},
             json={"contents":[{"parts":[{"text":prompt}]}],
-                  "generationConfig":{"maxOutputTokens":700,"temperature":0.1}},
+                  "generationConfig":{"maxOutputTokens":800,"temperature":0.1}},
             timeout=30)
         txt = r.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
         txt = re.sub(r"```json|```","",txt).strip()
@@ -782,7 +799,7 @@ Réponds UNIQUEMENT en JSON valide :
         log.warning(f"IA: {e}"); return None
 
 # ══════════════════════════════════════════════════════════════
-# TELEGRAM — envoi + commandes
+# NOTIFICATIONS — Telegram + Ntfy + Discord + Email
 # ══════════════════════════════════════════════════════════════
 def send(msg, urgente=False):
     if not TELEGRAM_TOKEN or not TELEGRAM_CHAT_ID: return
@@ -792,6 +809,35 @@ def send(msg, urgente=False):
                   "disable_web_page_preview":False,"disable_notification":not urgente},
             timeout=10)
     except Exception as e: log.error(f"Telegram: {e}")
+
+def send_ntfy(titre, message, urgente=False):
+    if not NTFY_TOPIC: return
+    try:
+        requests.post(f"{NTFY_URL}/{NTFY_TOPIC}",
+            data=message[:500].encode("utf-8"),
+            headers={
+                "Title": titre[:100],
+                "Priority": "urgent" if urgente else "high",
+                "Tags": "rotating_light,car" if urgente else "car,money",
+                "Content-Type": "text/plain; charset=utf-8",
+            }, timeout=10)
+        log.info(f"   📲 Ntfy → {NTFY_TOPIC}")
+    except Exception as e: log.warning(f"Ntfy: {e}")
+
+def send_discord(titre, message, urgente=False):
+    if not DISCORD_WEBHOOK: return
+    try:
+        requests.post(DISCORD_WEBHOOK, json={
+            "username": "MAX — Chasseur de Pépites",
+            "embeds": [{
+                "title": f"{'🚨' if urgente else '💎'} {titre[:250]}",
+                "description": message[:2000],
+                "color": 0xFF0000 if urgente else 0xFFD700,
+                "footer": {"text": f"MAX v7 · {datetime.now().strftime('%d/%m/%Y %H:%M')}"}
+            }]
+        }, timeout=10)
+        log.info(f"   💬 Discord envoyé")
+    except Exception as e: log.warning(f"Discord: {e}")
 
 def send_email(sujet, corps_html):
     if not EMAIL_SMTP_USER or not EMAIL_SMTP_PASS: return
@@ -804,54 +850,54 @@ def send_email(sujet, corps_html):
         with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=15) as srv:
             srv.login(EMAIL_SMTP_USER, EMAIL_SMTP_PASS)
             srv.sendmail(EMAIL_SMTP_USER, EMAIL_DEST, msg.as_string())
-        log.info(f"   📧 Email envoyé → {EMAIL_DEST}")
-    except Exception as e:
-        log.warning(f"Email: {e}")
+        log.info(f"   📧 Email → {EMAIL_DEST}")
+    except Exception as e: log.warning(f"Email: {e}")
 
+def notifier_tout(titre_court, msg_court, msg_long, msg_discord, urgente=False):
+    """Envoie sur tous les canaux actifs."""
+    send(msg_long, urgente=urgente)
+    send_ntfy(titre_court, msg_court, urgente=urgente)
+    send_discord(titre_court, msg_discord, urgente=urgente)
+    sujet = f"💎 MAX — {titre_court}"
+    corps = msg_long.replace("\n","<br>").replace("━","—")
+    send_email(sujet, f"<pre style='font-family:Arial;font-size:13px'>{corps}</pre>")
+
+# ══════════════════════════════════════════════════════════════
+# COMMANDES TELEGRAM
+# ══════════════════════════════════════════════════════════════
 def get_updates(offset=0):
     if not TELEGRAM_TOKEN: return [], offset
     try:
         r = requests.get(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/getUpdates",
             params={"offset": offset, "timeout": 2}, timeout=5)
-        data = r.json()
-        updates = data.get("result", [])
+        updates = r.json().get("result", [])
         new_offset = updates[-1]["update_id"] + 1 if updates else offset
         return updates, new_offset
-    except:
-        return [], offset
+    except: return [], offset
 
 def traiter_commande(texte, stats, pepites):
     t = texte.strip().lower()
-    log.info(f"Commande Telegram: {t}")
+    log.info(f"CMD Telegram: {t}")
 
-    if t == "/start" or t == "/aide" or t == "/help":
+    if t in ("/start","/aide","/help"):
         send(
-            "🤖 <b>MAX — Commandes disponibles</b>\n\n"
-            "/pause — Mettre en pause le scan\n"
-            "/resume — Reprendre le scan\n"
-            "/stats — Statistiques en cours\n"
-            "/top5 — 5 meilleures pépites\n"
-            "/status — État de l'agent\n\n"
-            "<b>Modifier les filtres :</b>\n"
-            "/prix_max 8000 — Changer prix max\n"
-            "/prix_min 500 — Changer prix min\n"
-            "/km_max 150000 — Changer km max\n"
-            "/marge_min 600 — Changer marge min\n"
-            "/decote_min 15 — Changer décote min\n"
-            "/score_min 55 — Changer score min\n"
-            "/reset — Remettre les filtres par défaut\n"
+            "🤖 <b>MAX v7 — Commandes</b>\n\n"
+            "/pause — Pause le scan\n"
+            "/resume — Reprendre\n"
+            "/stats — Statistiques\n"
+            "/top5 — Top 5 pépites\n"
+            "/status — État complet\n"
+            "/reset — Filtres par défaut\n\n"
+            "<b>Filtres :</b>\n"
+            "/prix_max 8000\n/prix_min 500\n/km_max 150000\n"
+            "/marge_min 600\n/decote_min 15\n/score_min 55"
         )
-
     elif t == "/pause":
-        _config_runtime["paused"] = True
-        save_config_runtime()
-        send("⏸️ <b>MAX en pause.</b> Tapez /resume pour reprendre.")
-
+        _cfg["paused"] = True; save_config_runtime()
+        send("⏸️ <b>MAX en pause.</b> /resume pour reprendre.")
     elif t == "/resume":
-        _config_runtime["paused"] = False
-        save_config_runtime()
+        _cfg["paused"] = False; save_config_runtime()
         send("▶️ <b>MAX reprend la chasse !</b> 🔥")
-
     elif t == "/stats":
         send(
             f"📊 <b>Stats MAX</b>\n"
@@ -863,54 +909,52 @@ def traiter_commande(texte, stats, pepites):
             f"⚡ Intervalle : {CHECK_INTERVAL}s\n"
             f"{'⏸️ EN PAUSE' if is_paused() else '✅ EN CHASSE'}"
         )
-
     elif t == "/top5":
         top = sorted(pepites, key=lambda x: x.get("score",0), reverse=True)[:5]
-        if not top:
-            send("Aucune pépite enregistrée pour l'instant.")
+        if not top: send("Aucune pépite enregistrée.")
         else:
-            msg = "🏆 <b>Top 5 pépites</b>\n\n"
+            msg = "🏆 <b>Top 5</b>\n\n"
             for i, p in enumerate(top, 1):
-                msg += f"{i}. {p.get('titre','')[:40]}\n   📊 {p.get('score',0)}/100 · +{p.get('marge_nette',0):,}€ net\n   🔗 <a href='{p.get('url','')}'>Voir →</a>\n\n".replace(",",".")
+                msg += f"{i}. {p.get('titre','')[:40]}\n   {p.get('score',0)}/100 · +{p.get('marge_nette',0):,}€\n   <a href='{p.get('url','')}'>Voir →</a>\n\n".replace(",",".")
             send(msg)
-
     elif t == "/status":
+        px_max = cfg('prix_max', PRIX_MAX)
+        if px_max <= 0: px_max = PRIX_MAX
         send(
-            f"🤖 <b>MAX — Statut</b>\n"
+            f"🤖 <b>MAX v7 — Statut</b>\n"
             f"{'⏸️ EN PAUSE' if is_paused() else '✅ EN CHASSE 🔥'}\n\n"
-            f"💶 Prix : {cfg('prix_min',PRIX_MIN)}€ → {cfg('prix_max',PRIX_MAX)}€\n"
+            f"💶 Prix : {cfg('prix_min',PRIX_MIN)}€ → {px_max}€\n"
             f"🛣️ Km max : {cfg('km_max',KM_MAX):,}\n".replace(",",".") +
             f"📊 Score min : {cfg('score_min',SCORE_MIN)}\n"
             f"💰 Marge min : {cfg('marge_min',MARGE_NETTE_MIN)}€\n"
             f"📉 Décote min : {cfg('decote_min',DECOTE_MIN)}%\n"
             f"⚡ Intervalle : {CHECK_INTERVAL}s\n"
-            f"💾 Data : {DATA_DIR}"
+            f"💾 Data : {DATA_DIR}\n"
+            f"📲 Ntfy : {'✅' if NTFY_TOPIC else '❌'} | 💬 Discord : {'✅' if DISCORD_WEBHOOK else '❌'} | 📧 Email : {'✅' if EMAIL_SMTP_USER else '❌'}"
         )
-
     elif t == "/reset":
         for k in ["prix_min","prix_max","km_max","marge_min","decote_min","score_min","marques","paused"]:
-            _config_runtime.pop(k, None)
+            _cfg.pop(k, None)
         save_config_runtime()
-        send("🔄 Filtres remis aux valeurs par défaut.")
-
+        send("🔄 Filtres remis par défaut.")
     else:
-        # Commandes avec valeur : /prix_max 8000
         for cmd, key, typ in [
-            ("/prix_max","prix_max",int), ("/prix_min","prix_min",int),
-            ("/km_max","km_max",int),     ("/marge_min","marge_min",int),
-            ("/decote_min","decote_min",int), ("/score_min","score_min",int),
+            ("/prix_max","prix_max",int),("/prix_min","prix_min",int),
+            ("/km_max","km_max",int),("/marge_min","marge_min",int),
+            ("/decote_min","decote_min",int),("/score_min","score_min",int),
         ]:
             if t.startswith(cmd):
                 try:
                     val = typ(t.split()[1])
-                    _config_runtime[key] = val
-                    save_config_runtime()
-                    send(f"✅ <b>{key}</b> mis à <b>{val}</b>")
-                    return
+                    _cfg[key] = val; save_config_runtime()
+                    send(f"✅ <b>{key}</b> = <b>{val}</b>")
                 except:
                     send(f"❌ Syntaxe : {cmd} <valeur>")
-                    return
+                return
 
+# ══════════════════════════════════════════════════════════════
+# FORMAT ALERTES
+# ══════════════════════════════════════════════════════════════
 def format_alerte(a, an):
     score   = an.get("score",0)
     emoji,_ = get_note_pepite(score)
@@ -927,37 +971,35 @@ def format_alerte(a, an):
     mot_line = ""
     if mot:
         fid_e = "✅" if mot[1] > 0 else "⚠️" if mot[1] > -15 else "❌"
-        mot_line = f"\n🔧 Moteur: <b>{mot[0][:25]}</b> {fid_e} Fiabilité {mot[2]}/10\n<i>{mot[3][:80]}</i>\n"
+        mot_line = f"\n🔧 <b>{mot[0][:25]}</b> {fid_e} Fiabilité {mot[2]}/10\n<i>{mot[3][:80]}</i>\n"
     cg_line = "📄 <b>Carte grise incluse ✅</b>\n" if a.get("_cg_incluse") else ""
-    detail = a.get("_detail_score",{})
+    detail  = a.get("_detail_score",{})
     detail_str = " · ".join([f"{k}:{v}" for k,v in list(detail.items())[:4]])
     return (
         f"{entete}\n\n"
         f"🚘 <b>{a['titre'][:70]}</b>{an_str}{km_str}\n"
         f"{carb_e} {a.get('_carburant','?')} · {boite_e} {a.get('_boite','?')}\n"
-        f"{cg_line}"
-        f"{mot_line}\n"
+        f"{cg_line}{mot_line}\n"
         f"━━━━━━━━━━━━━━━━━━━━━\n"
         f"💶 Prix demandé :  <b>{a['prix']:,}€</b>\n".replace(",",".") +
         f"📊 Cote Argus :    <b>{an.get('prix_argus',0):,}€</b>\n".replace(",",".") +
-        f"🎯 Sous Argus :    <b>-{an.get('economies_argus',0):,}€  (-{an.get('decote_pct',0)}%)</b> ✅\n".replace(",",".") +
+        f"🎯 Sous Argus :    <b>-{an.get('economies_argus',0):,}€ (-{an.get('decote_pct',0)}%)</b>\n".replace(",",".") +
         f"💰 Revente :       <b>{an.get('prix_revente_bas',0):,}€ → {an.get('prix_revente_haut',0):,}€</b>\n".replace(",",".") +
         f"━━━━━━━━━━━━━━━━━━━━━\n"
-        f"💼 <b>VOTRE MARGE RÉELLE (AE) :</b>\n"
-        f"   Marge brute :        +{an.get('marge_brute',0):,}€\n".replace(",",".") +
-        f"   TVA sur marge :      -{an.get('tva_marge',0):,}€\n".replace(",",".") +
-        f"   Cotis. AE {COTISATIONS_AE}% :    -{an.get('cotisations_ae',0):,}€\n".replace(",",".") +
-        f"   ➡️ <b>NET EN POCHE : +{an.get('marge_nette',0):,}€</b>\n".replace(",",".") +
-        f"🔄 ROI : <b>{an.get('roi',0)}%</b>  ·  ⏱️ Délai : <b>{an.get('delai_revente','?')}</b>\n"
+        f"💼 <b>MARGE RÉELLE (AE) :</b>\n"
+        f"   Brute :     +{an.get('marge_brute',0):,}€\n".replace(",",".") +
+        f"   TVA marge : -{an.get('tva_marge',0):,}€\n".replace(",",".") +
+        f"   Cotis. AE : -{an.get('cotisations_ae',0):,}€\n".replace(",",".") +
+        f"   ➡️ <b>NET : +{an.get('marge_nette',0):,}€</b>\n".replace(",",".") +
+        f"🔄 ROI : <b>{an.get('roi',0)}%</b> · ⏱️ <b>{an.get('delai_revente','?')}</b>\n"
         f"━━━━━━━━━━━━━━━━━━━━━\n"
         f"✅ <i>{an.get('points_forts','')}</i>\n"
         f"⚠️ <i>{an.get('risques','')}</i>\n\n"
-        f"🤝 Prix max à payer : <b>{an.get('prix_achat_max',0):,}€</b>\n".replace(",",".") +
+        f"🤝 Max à payer : <b>{an.get('prix_achat_max',0):,}€</b>\n".replace(",",".") +
         f"💬 Négo : <i>{an.get('negociation','')}</i>\n"
         f"🔍 À vérifier : <i>{an.get('verifications','')}</i>\n\n"
         f"💡 <b>MAX :</b> <i>{an.get('conseil_max','')}</i>\n\n"
-        f"📍 {a['source']}\n"
-        f"🧮 <i>{detail_str}</i>\n"
+        f"📍 {a['source']} · 🧮 <i>{detail_str}</i>\n"
         f"🔗 <a href='{a['url']}'>👉 Voir l'annonce →</a>\n"
         f"⏰ {datetime.now().strftime('%d/%m à %H:%M:%S')}"
     )
@@ -965,7 +1007,7 @@ def format_alerte(a, an):
 def format_rapport(stats, pepites):
     top3 = sorted(pepites, key=lambda x: x.get("score",0), reverse=True)[:3]
     return (
-        f"📊 <b>RAPPORT — MAX</b>\n"
+        f"📊 <b>RAPPORT — MAX v7</b>\n"
         f"📅 {datetime.now().strftime('%A %d/%m/%Y à %Hh%M')}\n\n"
         f"🔍 Scannées :    <b>{stats['scanne']:,}</b>\n".replace(",",".") +
         f"🧠 Analysées :   <b>{stats['analyse']:,}</b>\n".replace(",",".") +
@@ -973,9 +1015,9 @@ def format_rapport(stats, pepites):
         f"💰 Marge totale: <b>{stats['marge']:,}€</b>\n\n".replace(",",".") +
         f"<b>🏆 Top 3 :</b>\n" +
         "".join([f"• {p.get('titre','')[:40]} — {p.get('score',0)}/100 · +{p.get('marge_nette',0):,}€\n".replace(",",".") for p in top3]) +
-        f"\n⚡ Scan toutes les {CHECK_INTERVAL}s · 18 sources actives\n"
+        f"\n⚡ Scan toutes les {CHECK_INTERVAL}s · 18 sources\n"
         f"💾 Data : {DATA_DIR}\n"
-        f"✅ <i>MAX veille pour vous 24h/24 🔥</i>"
+        f"✅ <i>MAX veille 24h/24 🔥</i>"
     )
 
 # ══════════════════════════════════════════════════════════════
@@ -984,10 +1026,9 @@ def format_rapport(stats, pepites):
 def main():
     load_config_runtime()
     log.info("="*60)
-    log.info("💎 MAX v6 ULTRA — CHASSEUR DE PÉPITES")
-    log.info(f"   18 sources · Scan toutes les {CHECK_INTERVAL}s · Parallèle")
-    log.info(f"   Anti-ban activé · Retry 3x · Délais aléatoires")
-    log.info(f"   Commandes Telegram · Persistance : {DATA_DIR}")
+    log.info("💎 MAX v7 ULTRA — CHASSEUR DE PÉPITES ZÉRO DÉFAUT")
+    log.info(f"   18 sources · {CHECK_INTERVAL}s · Anti-ban · Stock check")
+    log.info(f"   Telegram + Ntfy + Discord + Email · Persistance {DATA_DIR}")
     log.info("="*60)
 
     known   = load_known()
@@ -996,156 +1037,168 @@ def main():
     suivi   = load_suivi()
     checks  = 0
     tg_offset = 0
-    dernier_rapport = datetime.now().replace(hour=0, minute=0, second=0)
+    dernier_rapport   = datetime.now().replace(hour=0, minute=0, second=0)
+    dernier_heartbeat = datetime.now()
 
-    send(
-        "💎 <b>MAX v6 ULTRA — DÉMARRÉ</b> 💎\n\n"
-        "📡 <b>18 sources · Anti-ban · Commandes Telegram</b>\n\n"
+    notifier_tout(
+        "MAX v7 ULTRA DÉMARRÉ 🔥",
+        f"18 sources · {CHECK_INTERVAL}s · Anti-ban · Stock check\nTapez /aide pour les commandes",
+        "💎 <b>MAX v7 ULTRA — DÉMARRÉ</b> 💎\n\n"
+        "📡 18 sources · Anti-ban · Vérif stock · 4 canaux alertes\n\n"
         "<b>🔨 Enchères :</b> Alcopa · BCA · Agorastore · Interenchères\n"
         "Autobid · Drouot · Domaines État 🇫🇷 · Commissaires\n\n"
         "<b>🚗 Occasions :</b> GPA26 · LeBonCoin · La Centrale\n"
         "AutoScout24 · Reezocar · ParuVendu · VivaStreet\n"
         "Aramisauto · ZoomCar · Caroom\n\n"
         f"⚡ Scan toutes les <b>{CHECK_INTERVAL}s</b>\n"
-        f"🛡️ Anti-ban : délais aléatoires + retry 3x\n"
-        f"💾 Données persistées : {DATA_DIR}\n\n"
-        "📱 <b>Tapez /aide pour les commandes disponibles</b>\n\n"
-        "✅ <b>MAX est en chasse — vous serez le PREMIER alerté ! 🔥</b>"
+        "📱 Tapez /aide pour les commandes\n"
+        "✅ <b>MAX est en chasse ! 🔥</b>",
+        f"**MAX v7 ULTRA démarré** 🔥\n18 sources · {CHECK_INTERVAL}s · Anti-ban · Stock check",
     )
 
     while True:
-        checks += 1
-        now = datetime.now()
-        stats["checks"] = checks
+        try:
+            checks += 1
+            now = datetime.now()
+            stats["checks"] = checks
 
-        # Lire les commandes Telegram
-        updates, tg_offset = get_updates(tg_offset)
-        for upd in updates:
-            msg = upd.get("message", {})
-            texte = msg.get("text", "")
-            if texte:
-                traiter_commande(texte, stats, pepites)
+            # Commandes Telegram
+            updates, tg_offset = get_updates(tg_offset)
+            for upd in updates:
+                msg = upd.get("message", {})
+                texte = msg.get("text", "")
+                if texte: traiter_commande(texte, stats, pepites)
 
-        # Recharger config dynamique
-        load_config_runtime()
+            load_config_runtime()
 
-        # Pause ?
-        if is_paused():
-            log.info("⏸️ En pause — attente 10s")
-            time.sleep(10)
-            continue
+            if is_paused():
+                log.info("⏸️ En pause")
+                time.sleep(10); continue
 
-        # Rapport périodique
-        if (now - dernier_rapport).total_seconds() >= RAPPORT_INTERVAL * 60:
-            send(format_rapport(stats, pepites))
-            dernier_rapport = now
+            # Rapport périodique
+            if (now - dernier_rapport).total_seconds() >= RAPPORT_INTERVAL * 60:
+                rpt = format_rapport(stats, pepites)
+                send(rpt)
+                send_discord("📊 Rapport MAX", rpt.replace("<b>","**").replace("</b>","**").replace("<i>","*").replace("</i>","*"))
+                dernier_rapport = now
 
-        log.info(f"\n{'='*55}")
-        log.info(f"[Check #{checks}] {now.strftime('%H:%M:%S')} — Scan 18 sources...")
+            # Heartbeat
+            if (now - dernier_heartbeat).total_seconds() >= HEARTBEAT_MAX * 60:
+                hb = f"💓 MAX en vie · Check #{checks} · {now.strftime('%H:%M')} · {stats.get('scanne',0)} scannées"
+                send(f"💓 <b>MAX Heartbeat</b>\n✅ En vie · Check #{checks}\n⏰ {now.strftime('%d/%m à %H:%M')}\n🔍 Scannées : {stats.get('scanne',0):,}".replace(",","."))
+                send_ntfy("💓 MAX Heartbeat", hb)
+                dernier_heartbeat = now
 
-        toutes = scan_tout()
-        stats["scanne"] += len(toutes)
-        log.info(f"   Total brut: {len(toutes)} annonces")
+            log.info(f"\n{'='*55}")
+            log.info(f"[Check #{checks}] {now.strftime('%H:%M:%S')}")
 
-        # Dédup cross-source
-        toutes = dedup_cross_source(toutes)
-        log.info(f"   Après dédup cross-source: {len(toutes)}")
+            toutes = scan_tout()
+            stats["scanne"] += len(toutes)
+            toutes = dedup_cross_source(toutes)
+            log.info(f"   Total: {len(toutes)} après dédup")
 
-        # Suivi prix
-        for a in toutes:
-            if a["prix"] > 0:
-                checker_baisse_prix(a, suivi)
-        save_suivi(suivi)
+            for a in toutes:
+                if a["prix"] > 0: checker_baisse_prix(a, suivi)
+            save_suivi(suivi)
 
-        # Filtre + dédup known
-        nouvelles = [a for a in toutes if a["id"] not in known and matches_filter(a)]
-        log.info(f"   → {len(nouvelles)} nouvelles après filtres")
+            nouvelles = [a for a in toutes if a["id"] not in known and matches_filter(a)]
+            log.info(f"   → {len(nouvelles)} nouvelles")
 
-        # Pré-score + tri
-        for a in nouvelles:
-            a["_score_pre"] = scorer(a)
-        nouvelles.sort(key=lambda x: x["_score_pre"], reverse=True)
+            for a in nouvelles: a["_score_pre"] = scorer(a)
+            nouvelles.sort(key=lambda x: x["_score_pre"], reverse=True)
 
-        score_min_eff = cfg("score_min", SCORE_MIN)
-        marge_min_eff = cfg("marge_min", MARGE_NETTE_MIN)
-        decote_min_eff = cfg("decote_min", DECOTE_MIN)
+            score_min_eff  = cfg("score_min", SCORE_MIN)
+            marge_min_eff  = cfg("marge_min", MARGE_NETTE_MIN)
+            decote_min_eff = cfg("decote_min", DECOTE_MIN)
 
-        for a in nouvelles:
-            known.add(a["id"])
-            src_k = re.sub(r"[^\w]","",a["source"])[:12]
-            stats["sources"][src_k] = stats["sources"].get(src_k,0) + 1
+            for a in nouvelles:
+                known.add(a["id"])
+                src_k = re.sub(r"[^\w]","",a["source"])[:12]
+                stats["sources"][src_k] = stats["sources"].get(src_k,0) + 1
 
-            score_pre = a.get("_score_pre", 50)
-            if score_pre < (score_min_eff - 20):
-                log.info(f"   ⏭  Pré-score {score_pre} trop bas — ignoré")
-                continue
-            if not a["prix"] and a["type"] not in ["enchere","enchere_etat"]:
-                continue
+                score_pre = a.get("_score_pre", 50)
+                if score_pre < (score_min_eff - 20): continue
+                if not a["prix"] and a["type"] not in ["enchere","enchere_etat"]: continue
 
-            if ANTHROPIC_KEY:
-                log.info(f"   🧠 [{score_pre}/100] {a['titre'][:45]}...")
-                analyse = analyser_ia(a, score_pre)
-                stats["analyse"] += 1
+                if ANTHROPIC_KEY:
+                    log.info(f"   🧠 [{score_pre}/100] {a['titre'][:45]}...")
+                    analyse = analyser_ia(a, score_pre)
+                    stats["analyse"] += 1
 
-                if analyse:
-                    score       = analyse.get("score", 0)
-                    marge_nette = analyse.get("marge_nette", 0)
-                    decote      = analyse.get("decote_pct", 0)
-                    urgence     = analyse.get("urgence", False) or score >= SCORE_URGENTE
+                    if analyse:
+                        score       = analyse.get("score", 0)
+                        marge_nette = analyse.get("marge_nette", 0)
+                        decote      = analyse.get("decote_pct", 0)
+                        urgence     = analyse.get("urgence", False) or score >= SCORE_URGENTE
 
-                    ok_score  = score >= score_min_eff
-                    ok_marge  = marge_nette >= marge_min_eff
-                    ok_decote = decote >= decote_min_eff
+                        ok_score  = score >= score_min_eff
+                        ok_marge  = marge_nette >= marge_min_eff
+                        ok_decote = decote >= decote_min_eff
 
-                    if ok_score and ok_marge and ok_decote:
-                        log.info(f"   💎 PÉPITE ! {score}/100 · -{decote}% Argus · +{marge_nette}€ net")
-                        stats["pepites"] += 1
-                        stats["marge"]    = stats.get("marge",0) + marge_nette
-                        pepite_rec = {**analyse, "titre":a["titre"][:60],
-                                      "url":a["url"], "source":a["source"],
-                                      "date":now.isoformat()}
-                        pepites.append(pepite_rec)
-                        save_pepites(pepites)
-                        alerte_txt = format_alerte(a, analyse)
-                        send(alerte_txt, urgente=urgence)
-                        # Email
-                        sujet = f"💎 MAX — {analyse.get('verdict','Pépite')} | {a['titre'][:50]}"
-                        corps = alerte_txt.replace("\n","<br>").replace("━","—")
-                        send_email(sujet, f"<pre style='font-family:Arial;font-size:14px'>{corps}</pre>")
-                        time.sleep(0.3)
+                        if ok_score and ok_marge and ok_decote:
+                            # Vérifier stock avant d'alerter
+                            if not verifier_stock(a):
+                                continue
+                            log.info(f"   💎 PÉPITE ! {score}/100 · -{decote}% · +{marge_nette}€")
+                            stats["pepites"] += 1
+                            stats["marge"] = stats.get("marge",0) + marge_nette
+                            pepites.append({**analyse,"titre":a["titre"][:60],
+                                            "url":a["url"],"source":a["source"],
+                                            "date":now.isoformat()})
+                            save_pepites(pepites)
+                            alerte = format_alerte(a, analyse)
+                            ntfy_msg = (f"{analyse.get('verdict','')} | {score}/100\n"
+                                        f"{a['titre'][:60]}\n"
+                                        f"Prix: {a['prix']}€ | Net: +{marge_nette}€ | -{decote}%\n"
+                                        f"{a['url']}")
+                            discord_msg = (f"**{analyse.get('verdict','')}** | {score}/100\n\n"
+                                           f"🚘 **{a['titre'][:70]}**\n"
+                                           f"💶 {a['prix']:,}€ | Net: **+{marge_nette:,}€** | -{decote}%\n"
+                                           f"📍 {a['source']}\n🔗 {a['url']}").replace(",",".")
+                            notifier_tout(
+                                f"{analyse.get('verdict','')} — {a['titre'][:50]}",
+                                ntfy_msg, alerte, discord_msg, urgente=urgence
+                            )
+                            time.sleep(0.3)
+                        else:
+                            raisons = []
+                            if not ok_score:  raisons.append(f"score {score}<{score_min_eff}")
+                            if not ok_marge:  raisons.append(f"marge {marge_nette}€<{marge_min_eff}€")
+                            if not ok_decote: raisons.append(f"décote {decote}%<{decote_min_eff}%")
+                            log.info(f"   ⏭  {' | '.join(raisons)}")
                     else:
-                        raisons = []
-                        if not ok_score:  raisons.append(f"score {score}<{score_min_eff}")
-                        if not ok_marge:  raisons.append(f"marge {marge_nette}€<{marge_min_eff}€")
-                        if not ok_decote: raisons.append(f"décote {decote}%<{decote_min_eff}%")
-                        log.info(f"   ⏭  Rejeté: {' | '.join(raisons)}")
+                        if a.get("type") == "enchere_etat" and a["prix"] > 0:
+                            msg_etat = (
+                                f"🏛️ <b>SAISIE ÉTAT</b>\n🚘 {a['titre'][:60]}\n"
+                                f"💶 Mise à prix: <b>{a['prix']:,}€</b>\n".replace(",",".") +
+                                f"📍 {a['source']}\n🔗 <a href='{a['url']}'>Voir →</a>"
+                            )
+                            send(msg_etat)
+                            send_ntfy(f"🏛️ Saisie État", f"{a['titre'][:60]}\n{a['prix']}€\n{a['url']}")
                 else:
-                    if a.get("type") == "enchere_etat" and a["prix"] > 0:
-                        send(
-                            f"🏛️ <b>SAISIE ÉTAT — À analyser manuellement</b>\n"
+                    if score_pre >= score_min_eff:
+                        emoji, label = get_note_pepite(score_pre)
+                        msg_simple = (
+                            f"{emoji} <b>{label}</b> — {score_pre}/100\n"
                             f"🚘 {a['titre'][:60]}\n"
-                            f"💶 Mise à prix: <b>{a['prix']:,}€</b>\n".replace(",",".") +
-                            f"📍 {a['source']}\n"
-                            f"🔗 <a href='{a['url']}'>👉 Voir →</a>"
+                            f"💶 {a['prix']:,}€{' · '+str(a['km'])+'km' if a.get('km') else ''}\n".replace(",",".") +
+                            f"📍 {a['source']}\n🔗 <a href='{a['url']}'>Voir →</a>\n"
+                            f"<i>⚠️ Ajoutez ANTHROPIC_KEY pour l'analyse complète</i>"
                         )
-            else:
-                if score_pre >= score_min_eff:
-                    emoji, label = get_note_pepite(score_pre)
-                    send(
-                        f"{emoji} <b>{label}</b>\n"
-                        f"📊 NOTE MAX : <b>{score_pre}/100</b>  <code>[{barre_score(score_pre)}]</code>\n\n"
-                        f"🚘 {a['titre'][:60]}\n"
-                        f"💶 {a['prix']:,}€{' · '+str(a['km'])+'km' if a.get('km') else ''}\n".replace(",",".") +
-                        f"⛽ {a.get('_carburant','?')} · 🔧 {a.get('_boite','?')}\n"
-                        f"📍 {a['source']}\n"
-                        f"🔗 <a href='{a['url']}'>👉 Voir →</a>\n"
-                        f"<i>⚠️ Ajoutez ANTHROPIC_KEY pour l'analyse MAX complète</i>"
-                    )
+                        send(msg_simple)
+                        send_ntfy(f"{emoji} {label}", f"{a['titre'][:60]}\n{a['prix']}€\n{a['url']}")
 
-        save_known(known)
-        save_stats(stats)
-        log.info(f"   ✅ Check #{checks} — prochaine vérif dans {CHECK_INTERVAL}s")
-        time.sleep(CHECK_INTERVAL)
+            save_known(known)
+            save_stats(stats)
+            log.info(f"   ✅ Check #{checks} — next dans {CHECK_INTERVAL}s")
+            time.sleep(CHECK_INTERVAL)
+
+        except KeyboardInterrupt:
+            log.info("MAX arrêté manuellement.")
+            break
+        except Exception as e:
+            log.error(f"Erreur boucle principale: {e}")
+            time.sleep(30)  # Attente avant de relancer
 
 if __name__ == "__main__":
     main()
