@@ -591,6 +591,31 @@ def est_vendu(texte, soup_item=None):
             if any(m in parent_classes for m in ["sold","vendu","unavailable","disabled"]): return True
     return False
 
+def gpa26_check_detail(url_detail):
+    """
+    Vérifie la page détail GPA26 :
+    - Retourne (vendu_particulier, carte_grise) booleans
+    - vendu_particulier = True si "vendu à un particulier" détecté
+    - carte_grise = True si carte grise incluse / remise avec le véhicule
+    """
+    try:
+        r = get_url(url_detail, timeout=10, delay_min=0.5, delay_max=1.5)
+        if not r: return False, False
+        soup = BeautifulSoup(r.text, "html.parser")
+        texte_page = soup.get_text(" ", strip=True).lower()
+
+        vendu_part = any(m in texte_page for m in [
+            "vendu à un particulier", "vendu particulier", "cédé à un particulier",
+            "vendu en l'état", "vendu sans garantie", "vente directe particulier"
+        ])
+        carte_grise = any(m in texte_page for m in [
+            "carte grise", "carte grise incluse", "carte grise remise",
+            "cg incluse", "titre de circulation", "certificat d'immatriculation"
+        ])
+        return vendu_part, carte_grise
+    except:
+        return False, False
+
 def scrape_gpa26():
     try:
         r = get_url("https://revente.gpa26.com/fr/")
@@ -604,12 +629,34 @@ def scrape_gpa26():
             if not m2: continue
             text = link.get_text(" ", strip=True)
             if not text: continue
-            # Filtrer annonces vendues
+            # Filtrer annonces vendues (titre)
             if est_vendu(text, link):
                 ignores += 1
                 continue
-            out.append(build("gpa_"+m2.group(1), "⚫ GPA26 Pro", text, extraire_prix(text), extraire_km(text), extraire_annee(text), "https://revente.gpa26.com"+href, "pro"))
-        log.info(f"   GPA26: {len(out)} dispo ({ignores} vendus ignorés)"); return out
+
+            url_full = "https://revente.gpa26.com" + href
+            annonce = build("gpa_"+m2.group(1), "⚫ GPA26 Pro", text,
+                            extraire_prix(text), extraire_km(text), extraire_annee(text),
+                            url_full, "pro")
+
+            # Vérifier page détail : vendu particulier + carte grise
+            vendu_part, cg = gpa26_check_detail(url_full)
+
+            if vendu_part:
+                ignores += 1
+                log.info(f"   GPA26 ignoré (vendu particulier) : {text[:40]}")
+                continue
+
+            # Bonus carte grise dans le titre enrichi
+            if cg:
+                annonce["titre"] = annonce["titre"] + " [CG incluse]"
+                annonce["_cg_incluse"] = True
+                log.info(f"   GPA26 ✅ carte grise incluse : {text[:40]}")
+
+            out.append(annonce)
+
+        log.info(f"   GPA26: {len(out)} dispo ({ignores} ignorés — vendus/particuliers)")
+        return out
     except Exception as e: log.warning(f"GPA26: {e}"); return []
 
 def scrape_paruvendu():
@@ -857,12 +904,14 @@ def format_alerte(a, an):
     if mot:
         fid_e = "✅" if mot[1] > 0 else "⚠️" if mot[1] > -15 else "❌"
         mot_line = f"\n🔧 Moteur: <b>{mot[0][:25]}</b> {fid_e} Fiabilité {mot[2]}/10\n<i>{mot[3][:80]}</i>\n"
+    cg_line = "📄 <b>Carte grise incluse ✅</b>\n" if a.get("_cg_incluse") else ""
     detail = a.get("_detail_score",{})
     detail_str = " · ".join([f"{k}:{v}" for k,v in list(detail.items())[:4]])
     return (
         f"{entete}\n\n"
         f"🚘 <b>{a['titre'][:70]}</b>{an_str}{km_str}\n"
         f"{carb_e} {a.get('_carburant','?')} · {boite_e} {a.get('_boite','?')}\n"
+        f"{cg_line}"
         f"{mot_line}\n"
         f"━━━━━━━━━━━━━━━━━━━━━\n"
         f"💶 Prix demandé :  <b>{a['prix']:,}€</b>\n".replace(",",".") +
@@ -1071,4 +1120,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-    
