@@ -868,12 +868,17 @@ def notifier_tout(titre_court, msg_court, msg_long, msg_discord, urgente=False):
 def get_updates(offset=0):
     if not TELEGRAM_TOKEN: return [], offset
     try:
-        r = requests.get(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/getUpdates",
-            params={"offset": offset, "timeout": 2}, timeout=5)
+        r = requests.get(
+            f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/getUpdates",
+            params={"offset": offset, "timeout": 1, "allowed_updates": ["message"]},
+            timeout=10)
+        if not r.ok: return [], offset
         updates = r.json().get("result", [])
         new_offset = updates[-1]["update_id"] + 1 if updates else offset
         return updates, new_offset
-    except: return [], offset
+    except Exception as e:
+        log.warning(f"getUpdates: {e}")
+        return [], offset
 
 def traiter_commande(texte, stats, pepites):
     t = texte.strip().lower()
