@@ -692,22 +692,22 @@ def scrape_gpa26():
 
 def scrape_paruvendu():
     try:
-        a = _parse(f"https://www.paruvendu.fr/voiture-occasion/toutes-marques/?px1={cfg('prix_min',PRIX_MIN)}&px2={cfg('prix_max',PRIX_MAX)}&km2={cfg('km_max',KM_MAX)}&tri=date_desc",
+        a = _parse(f"https://www.paruvendu.fr/voiture-occasion/toutes-marques/annonceauto/annonceauto/?px1={cfg('prix_min',PRIX_MIN)}&px2={cfg('prix_max',PRIX_MAX)}&km2={cfg('km_max',KM_MAX)}&tri=date_desc",
                    r"/voiture-occasion/[^/]+/[^/]+/\d", "https://www.paruvendu.fr", "🟣 ParuVendu", "occasion", 15)
         log.info(f"   ParuVendu: {len(a)}"); return a
     except Exception as e: log.warning(f"ParuVendu: {e}"); return []
 
 def scrape_vivastreet():
     try:
-        a = _parse(f"https://www.vivastreet.com/voitures/france?prix_min={cfg('prix_min',PRIX_MIN)}&prix_max={cfg('prix_max',PRIX_MAX)}&tri=date",
+        a = _parse(f"https://www.vivastreet.com/voitures+france?prix_min={cfg('prix_min',PRIX_MIN)}&prix_max={cfg('prix_max',PRIX_MAX)}",
                    r"/annonce/\d+|/voitures/\d+", "https://www.vivastreet.com", "🟤 VivaStreet", "occasion", 15)
         log.info(f"   VivaStreet: {len(a)}"); return a
     except Exception as e: log.warning(f"VivaStreet: {e}"); return []
 
 def scrape_aramisauto():
     try:
-        a = _parse(f"https://www.aramisauto.com/voitures-occasion/?priceMin={cfg('prix_min',PRIX_MIN)}&priceMax={cfg('prix_max',PRIX_MAX)}&mileageMax={cfg('km_max',KM_MAX)}&sortBy=price_asc",
-                   r"/voitures-occasion/[^/]+/[^/]+/\d", "https://www.aramisauto.com", "🔶 Aramisauto", "pro", 15)
+        a = _parse(f"https://www.aramisauto.com/voitures-occasion/?priceMin={cfg('prix_min',PRIX_MIN)}&priceMax={cfg('prix_max',PRIX_MAX)}&mileageMax={cfg('km_max',KM_MAX)}",
+                   r"/voitures-occasion/[^/?]+/[^/?]+/\d", "https://www.aramisauto.com", "🔶 Aramisauto", "pro", 15)
         log.info(f"   Aramisauto: {len(a)}"); return a
     except Exception as e: log.warning(f"Aramisauto: {e}"); return []
 
@@ -720,7 +720,7 @@ def scrape_zoomcar():
 
 def scrape_caroom():
     try:
-        a = _parse(f"https://www.caroom.fr/annonces?price_to={cfg('prix_max',PRIX_MAX)}&price_from={cfg('prix_min',PRIX_MIN)}&mileage_to={cfg('km_max',KM_MAX)}&sort=date_desc",
+        a = _parse(f"https://www.caroom.fr/recherche?budget_max={cfg('prix_max',PRIX_MAX)}&budget_min={cfg('prix_min',PRIX_MIN)}&kilometrage_max={cfg('km_max',KM_MAX)}&tri=date",
                    r"/annonce/\d+|/voiture/\d+", "https://www.caroom.fr", "🔵 Caroom", "occasion", 15)
         log.info(f"   Caroom: {len(a)}"); return a
     except Exception as e: log.warning(f"Caroom: {e}"); return []
