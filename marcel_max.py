@@ -41,24 +41,24 @@ MARQUES_BLACKLIST = [m.strip().upper() for m in os.environ.get("MARQUES_BLACKLIS
 MOTS_CLES         = [m.strip().lower() for m in os.environ.get("MOTS_CLES","").split(",") if m.strip()]
 
 # Seuils pépites — MAX n'envoie QUE si TOUS ces critères sont remplis
-SCORE_MIN         = int(os.environ.get("SCORE_MIN", "45"))          # Note /100 minimum
-MARGE_NETTE_MIN   = int(os.environ.get("MARGE_NETTE_MIN", "400"))   # Marge nette AE minimum €
-DECOTE_MIN        = int(os.environ.get("DECOTE_MIN", "10"))         # % minimum sous Argus
-SCORE_URGENTE     = int(os.environ.get("SCORE_URGENTE", "88"))      # Score alerte urgente (son)
+SCORE_MIN         = int(os.environ.get("SCORE_MIN", "45"))
+MARGE_NETTE_MIN   = int(os.environ.get("MARGE_NETTE_MIN", "400"))
+DECOTE_MIN        = int(os.environ.get("DECOTE_MIN", "10"))
+SCORE_URGENTE     = int(os.environ.get("SCORE_URGENTE", "88"))
 
 # Fiscal auto-entrepreneur
 COTISATIONS_AE    = float(os.environ.get("COTISATIONS_AE", "12.3"))
 TVA_MARGE         = os.environ.get("TVA_MARGE", "true").lower() == "true"
 
 # Rapport
-RAPPORT_INTERVAL  = int(os.environ.get("RAPPORT_INTERVAL", "240"))   # Rapport toutes les X minutes
+RAPPORT_INTERVAL  = int(os.environ.get("RAPPORT_INTERVAL", "240"))
 
 # Parallel
 MAX_WORKERS       = int(os.environ.get("MAX_WORKERS", "10"))
 
-KNOWN_FILE  = "known_max.json"
-STATS_FILE  = "stats_max.json"
-PEPITES_FILE= "pepites_max.json"
+KNOWN_FILE   = "known_max.json"
+STATS_FILE   = "stats_max.json"
+PEPITES_FILE = "pepites_max.json"
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s", datefmt="%H:%M:%S")
 log = logging.getLogger("MAX")
@@ -80,7 +80,6 @@ def get_headers():
 # BASE MOTEURS — 35 motorisations encodées
 # ══════════════════════════════════════════════════════════════
 MOTEURS_DB = {
-    # ─── MOTEURS À FUIR ─────────────────────────────────────
     "EP6|1.6 THP|PRINCE":           (-30, 2,  "Chaîne distrib fragile → casse 1500-3000€. Fuyez avant 2016."),
     "1.2 TCE 115|1.2 TCE 120":      (-20, 3,  "Joint culasse fréquent → 800-2000€. Rappels constructeur 2014-2018."),
     "N47|116D|118D|120D|2.0D BMW":  (-30, 2,  "Chaîne côté boîte → dépose moteur 3000-5000€. Bannir absolument."),
@@ -96,8 +95,6 @@ MOTEURS_DB = {
     "2.0 TDI M9R|2.0 DCI LAG":     (-10, 5,  "Injecteurs Siemens fragiles >150k. Éviter >200 000km."),
     "A16DTH|1.6 CDTI OPEL":        (-8,  5,  "Chaîne Opel problématique. Vérifier bruit démarrage."),
     "1.4 T-JET":                    (-5,  5,  "Courroie obligatoire 60 000km. Turbine 170ch fragile."),
-
-    # ─── MOTEURS FIABLES ────────────────────────────────────
     "K9K|1.5 DCI|1.5DCI":          (+20, 9,  "MEILLEUR diesel du marché. Taxis 400 000km. Achetez les yeux fermés."),
     "2ZR-FXE|HYBRID TOYOTA|YARIS H|AURIS H|COROLLA H|PRIUS": (+25, 10, "Légendaire. Taxis 600 000km. Batterie dure 300k. PÉPITE ABSOLUE."),
     "1NZ-FE|1.5 VVTI TOYOTA":      (+18, 9,  "Toyota increvable. JD Power N°1 fiabilité."),
@@ -125,7 +122,7 @@ def analyser_moteur(titre):
             if len(cle) > 3 and cle in titre_up and len(cle) > best_len:
                 best = (cles.split("|")[0], score, fid, conseil)
                 best_len = len(cle)
-    return best  # (nom, score, fiabilite, conseil) ou None
+    return best
 
 # ══════════════════════════════════════════════════════════════
 # DÉTECTION CARBURANT / BOÎTE
@@ -156,11 +153,11 @@ def detecter_carburant(titre):
 
 def detecter_boite(titre):
     t = titre.upper()
-    if any(m in t for m in _DSG):    return "DSG"
-    if any(m in t for m in _EDC):    return "EDC"
-    if any(m in t for m in _CVT):    return "CVT"
-    if any(m in t for m in _ROBOT):  return "ROBOTISEE"
-    if any(m in t for m in _AUTO):   return "AUTOMATIQUE"
+    if any(m in t for m in _DSG):     return "DSG"
+    if any(m in t for m in _EDC):     return "EDC"
+    if any(m in t for m in _CVT):     return "CVT"
+    if any(m in t for m in _ROBOT):   return "ROBOTISEE"
+    if any(m in t for m in _AUTO):    return "AUTOMATIQUE"
     if any(m in t for m in _MANUELLE):return "MANUELLE"
     return "?"
 
@@ -214,32 +211,27 @@ def scorer(a):
     t_low = a["titre"].lower()
     detail = {}
 
-    # Modèle connu
     for m, b in MODELES_BONUS.items():
         if m in t_up:
             score += b; detail["modèle"] = f"+{b}pts ({m})"; break
 
-    # Moteur
     mot = analyser_moteur(a["titre"])
     if mot:
         score += mot[1]; detail["moteur"] = f"{mot[1]:+d}pts ({mot[0][:20]})"
 
-    # Source
     bs = {"enchere_etat":25,"enchere":15,"pro":10,"occasion":0}.get(a.get("type",""),0)
     if bs: score += bs; detail["source"] = f"+{bs}pts ({a['type']})"
 
-    # Kilométrage
     km = a.get("km",0)
     if km > 0:
-        if km < 50000:   b=18
-        elif km < 80000: b=14
-        elif km < 120000:b=10
-        elif km < 160000:b=5
-        elif km < 200000:b=2
-        else:            b=-12
+        if km < 50000:    b=18
+        elif km < 80000:  b=14
+        elif km < 120000: b=10
+        elif km < 160000: b=5
+        elif km < 200000: b=2
+        else:             b=-12
         score += b; detail["km"] = f"{b:+d}pts ({km:,}km)".replace(",",".")
 
-    # Année
     an = a.get("annee",0)
     if an > 0:
         age = 2024 - an
@@ -250,22 +242,18 @@ def scorer(a):
         else:           b=-8
         score += b; detail["année"] = f"{b:+d}pts ({an})"
 
-    # Carburant
     carb = a.get("_carburant","?")
     cb = {"HYBRIDE":10,"ELECTRIQUE":8,"DIESEL":5,"GPL":3,"ESSENCE":2}.get(carb,0)
     if cb: score += cb; detail["carburant"] = f"+{cb}pts ({carb})"
 
-    # Boîte
     boite = a.get("_boite","?")
     bb = {"AUTOMATIQUE":8,"MANUELLE":3,"DSG":-8,"EDC":-5,"CVT":-3,"ROBOTISEE":-6}.get(boite,0)
     if bb: score += bb; detail["boîte"] = f"{bb:+d}pts ({boite})"
 
-    # Mots suspects
     for mot in MOTS_SUSPECTS:
         if mot in t_low:
             score -= 25; detail["⚠️suspect"] = f"-25pts ({mot})"; break
 
-    # Mots positifs
     bp = 0
     trouvés = []
     for mot in MOTS_POSITIFS:
@@ -287,11 +275,11 @@ def load_json(f, default):
 def save_json(f, data):
     with open(f,"w") as fp: json.dump(data, fp, ensure_ascii=False)
 
-def load_known():  return set(load_json(KNOWN_FILE, []))
-def save_known(s): save_json(KNOWN_FILE, list(s)[-10000:])
-def load_stats():  return load_json(STATS_FILE, {"scanne":0,"analyse":0,"pepites":0,"marge":0,"checks":0,"sources":{}})
-def save_stats(s): save_json(STATS_FILE, s)
-def load_pepites():return load_json(PEPITES_FILE, [])
+def load_known():   return set(load_json(KNOWN_FILE, []))
+def save_known(s):  save_json(KNOWN_FILE, list(s)[-10000:])
+def load_stats():   return load_json(STATS_FILE, {"scanne":0,"analyse":0,"pepites":0,"marge":0,"checks":0,"sources":{}})
+def save_stats(s):  save_json(STATS_FILE, s)
+def load_pepites(): return load_json(PEPITES_FILE, [])
 def save_pepites(p):save_json(PEPITES_FILE, p[-300:])
 
 # ══════════════════════════════════════════════════════════════
@@ -331,7 +319,7 @@ def get_url(url, timeout=15):
         return r
     except: return None
 
-def build(id, src, titre, prix, km, annee, url, typ):
+def build(id, src, titre, prix, km, annee, url, typ="occasion"):
     a = {"id":id,"source":src,"titre":titre[:120],"prix":prix,"km":km,"annee":annee,"url":url,"type":typ}
     a["_carburant"] = detecter_carburant(titre)
     a["_boite"]     = detecter_boite(titre)
@@ -340,33 +328,26 @@ def build(id, src, titre, prix, km, annee, url, typ):
 def hid(s): return hashlib.md5(s.encode()).hexdigest()[:10]
 
 def matches_filter(a):
-    # Prix
     if a["prix"]  > 0 and a["prix"]  < PRIX_MIN:  return False
     if a["prix"]  > 0 and a["prix"]  > PRIX_MAX:  return False
-    # KM
     if a["km"]    > 0 and a["km"]    < KM_MIN:    return False
     if a["km"]    > 0 and a["km"]    > KM_MAX:    return False
-    # Année
     if a["annee"] > 0 and a["annee"] < ANNEE_MIN: return False
     if a["annee"] > 0 and a["annee"] > ANNEE_MAX: return False
-    # Marques
     t = a["titre"].upper()
     if MARQUES and not any(m in t for m in MARQUES): return False
     if any(m in t for m in MARQUES_BLACKLIST):        return False
-    # Mots clés
     if MOTS_CLES and not any(k in a["titre"].lower() for k in MOTS_CLES): return False
-    # Carburant
     carb = a.get("_carburant","?")
     if CARBURANTS_INCLUS and carb not in CARBURANTS_INCLUS and carb != "?": return False
     if CARBURANTS_EXCLUS and carb in CARBURANTS_EXCLUS: return False
-    # Boîte
     boite = a.get("_boite","?")
     if BOITES_INCLUSES and boite not in BOITES_INCLUSES and boite != "?": return False
     if BOITES_EXCLUES  and boite in BOITES_EXCLUES:  return False
     return True
 
 # ══════════════════════════════════════════════════════════════
-# SCRAPERS — 20 SOURCES
+# SCRAPERS — 18 SOURCES
 # ══════════════════════════════════════════════════════════════
 def _parse(url, pattern, base, src, typ, limit=25):
     annonces = []
@@ -463,9 +444,9 @@ def scrape_commissaires():
         a = _parse("https://www.commissaires-justice.fr/ventes-aux-encheres/vehicules",
                    r"/lot|/vehicule|/voiture", "https://www.commissaires-justice.fr", "⚖️ Commissaires", "enchere_etat", 15)
         log.info(f"   Commissaires: {len(a)}"); return a
-    except Exception as e: log.warning(f"Commissaires: {e
-    
-    def scrape_leboncoin():
+    except Exception as e: log.warning(f"Commissaires: {e}"); return []
+
+def scrape_leboncoin():
     try:
         r = get_url("https://www.leboncoin.fr/recherche?category=2&locations=Occitanie&price=0-3000&fuel=essence,diesel&sort=price&order=asc")
         if not r: return []
@@ -477,12 +458,20 @@ def scrape_commissaires():
             if not m2: continue
             text = item.get_text(" ", strip=True)
             if not text: continue
-            out.append(build("lbc_"+m2.group(1), "🟠 LeBonCoin", text, extraire_prix(text), extraire_km(text), extraire_annee(text), "https://www.leboncoin.fr"+href))
+            out.append(build("lbc_"+m2.group(1), "🟠 LeBonCoin", text, extraire_prix(text), extraire_km(text), extraire_annee(text), "https://www.leboncoin.fr"+href, "occasion"))
         log.info(f"   LeBonCoin: {len(out)}"); return out
     except Exception as e: log.warning(f"LeBonCoin: {e}"); return []
 
-        
-
+def scrape_lacentrale():
+    try:
+        r = get_url(f"https://www.lacentrale.fr/listing?makesModelsCommercialNames=&yearMin={ANNEE_MIN}&mileageMax={KM_MAX}&priceMin={PRIX_MIN}&priceMax={PRIX_MAX}&sortBy=priceAsc")
+        if not r: return []
+        soup = BeautifulSoup(r.text, "html.parser")
+        out = []
+        for item in soup.find_all("a", href=re.compile(r"/auto-occasion/"))[:20]:
+            href = item.get("href","")
+            if not href: continue
+            text = item.get_text(" ", strip=True)
             prix = extraire_prix(text)
             if not prix: continue
             url_f = "https://www.lacentrale.fr" + href if href.startswith("/") else href
@@ -698,20 +687,18 @@ def format_alerte(a, an):
     boite_e = {"MANUELLE":"🔧","AUTOMATIQUE":"🔄","DSG":"⚙️","EDC":"⚙️","CVT":"🔄","ROBOTISEE":"⚙️"}.get(a.get("_boite",""),"🔧")
 
     km_str  = f" · {a['km']:,}km".replace(",",".") if a.get("km") else ""
-    an_str  = f" · {a['annee']}" if a.get("km") else ""
+    an_str  = f" · {a['annee']}" if a.get("annee") else ""
 
     entete = ("🚨 <b>ALERTE URGENTE</b> 🚨\n" if urgence else "") + \
              f"{emoji} <b>{an.get('verdict','')}</b>\n" + \
              f"📊 NOTE MAX : <b>{score}/100</b>  <code>[{barre}]</code>"
 
-    # Moteur
     mot = analyser_moteur(a["titre"])
     mot_line = ""
     if mot:
         fid_e = "✅" if mot[1] > 0 else "⚠️" if mot[1] > -15 else "❌"
         mot_line = f"\n🔧 Moteur: <b>{mot[0][:25]}</b> {fid_e} Fiabilité {mot[2]}/10\n<i>{mot[3][:80]}</i>\n"
 
-    # Détail score
     detail = a.get("_detail_score",{})
     detail_str = " · ".join([f"{k}:{v}" for k,v in list(detail.items())[:4]])
 
@@ -772,10 +759,10 @@ def main():
     log.info(f"   AE: {COTISATIONS_AE}% · TVA marge: {TVA_MARGE}")
     log.info("="*60)
 
-    known     = load_known()
-    stats     = load_stats()
-    pepites   = load_pepites()
-    checks    = 0
+    known   = load_known()
+    stats   = load_stats()
+    pepites = load_pepites()
+    checks  = 0
     dernier_rapport = datetime.now().replace(hour=0, minute=0, second=0)
 
     send(
@@ -799,7 +786,6 @@ def main():
         now = datetime.now()
         stats["checks"] = checks
 
-        # Rapport toutes les X minutes
         if (now - dernier_rapport).total_seconds() >= RAPPORT_INTERVAL * 60:
             send(format_rapport(stats, pepites))
             dernier_rapport = now
@@ -811,11 +797,9 @@ def main():
         stats["scanne"] += len(toutes)
         log.info(f"   Total: {len(toutes)} annonces")
 
-        # Filtre + dédup
         nouvelles = [a for a in toutes if a["id"] not in known and matches_filter(a)]
         log.info(f"   → {len(nouvelles)} nouvelles après filtres")
 
-        # Pré-score + tri (meilleures en premier)
         for a in nouvelles:
             a["_score_pre"] = scorer(a)
         nouvelles.sort(key=lambda x: x["_score_pre"], reverse=True)
@@ -827,7 +811,6 @@ def main():
 
             score_pre = a.get("_score_pre", 50)
 
-            # Pré-filtre rapide
             if score_pre < (SCORE_MIN - 20):
                 log.info(f"   ⏭  Pré-score {score_pre} trop bas — ignoré")
                 continue
@@ -847,14 +830,11 @@ def main():
                     prix_argus  = analyse.get("prix_argus", 0)
                     urgence     = analyse.get("urgence", False) or score >= SCORE_URGENTE
 
-                    # ── CRITÈRES STRICTS ──
-                    ok_score   = score >= SCORE_MIN
-                    ok_marge   = marge_nette >= MARGE_NETTE_MIN
-                    ok_decote  = decote >= DECOTE_MIN
-                    ok_argus  = True
-                    ok_ia = True
+                    ok_score  = score >= SCORE_MIN
+                    ok_marge  = marge_nette >= MARGE_NETTE_MIN
+                    ok_decote = decote >= DECOTE_MIN
 
-                    if ok_score and ok_marge and ok_decote and ok_argus and ok_ia:
+                    if ok_score and ok_marge and ok_decote:
                         log.info(f"   💎 PÉPITE ! {score}/100 · -{decote}% Argus · +{marge_nette}€ net")
                         stats["pepites"] += 1
                         stats["marge"]    = stats.get("marge",0) + marge_nette
@@ -872,12 +852,9 @@ def main():
                         if not ok_score:  raisons.append(f"score {score}<{SCORE_MIN}")
                         if not ok_marge:  raisons.append(f"marge {marge_nette}€<{MARGE_NETTE_MIN}€")
                         if not ok_decote: raisons.append(f"décote {decote}%<{DECOTE_MIN}%")
-                        if not ok_argus:  raisons.append(f"prix≥Argus")
-                        if not ok_ia:     raisons.append("IA: pas pépite")
                         log.info(f"   ⏭  Rejeté: {' | '.join(raisons)}")
 
                 else:
-                    # Sans analyse réussie — enchère État uniquement
                     if a.get("type") == "enchere_etat" and a["prix"] > 0:
                         send(
                             f"🏛️ <b>SAISIE ÉTAT — À analyser manuellement</b>\n"
@@ -887,7 +864,6 @@ def main():
                             f"🔗 <a href='{a['url']}'>👉 Voir →</a>"
                         )
             else:
-                # Sans clé IA — pré-score uniquement
                 if score_pre >= SCORE_MIN:
                     emoji, label = get_note_pepite(score_pre)
                     send(
