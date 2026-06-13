@@ -761,12 +761,13 @@ RÈGLE : pépite seulement si prix < Argus -{decote_min}% ET marge nette ≥ {ma
 Réponds UNIQUEMENT en JSON valide :
 {{"score":<0-100>,"est_pepite":<bool>,"verdict":"<label>","prix_argus":<€>,"decote_pct":<int>,"economies_argus":<€>,"prix_revente_bas":<€>,"prix_revente_haut":<€>,"marge_brute":<€>,"tva_marge":<€>,"cotisations_ae":<€>,"marge_nette":<€>,"roi":<float>,"prix_achat_max":<€>,"delai_revente":"<durée>","points_forts":"<3 args>","risques":"<risques chiffrés>","negociation":"<tactique>","verifications":"<5 points>","conseil_max":"<1 phrase>","urgence":<bool>}}"""
     try:
-        r = requests.post("https://api.anthropic.com/v1/messages",
-            headers={"Content-Type":"application/json","x-api-key":ANTHROPIC_KEY,"anthropic-version":"2023-06-01"},
-            json={"model":"claude-haiku-4-5-20251001","max_tokens":700,
-                  "messages":[{"role":"user","content":prompt}]},
+        r = requests.post(
+            f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={ANTHROPIC_KEY}",
+            headers={"Content-Type":"application/json"},
+            json={"contents":[{"parts":[{"text":prompt}]}],
+                  "generationConfig":{"maxOutputTokens":700,"temperature":0.1}},
             timeout=30)
-        txt = r.json()["content"][0]["text"].strip()
+        txt = r.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
         txt = re.sub(r"```json|```","",txt).strip()
         return json.loads(txt)
     except Exception as e:
