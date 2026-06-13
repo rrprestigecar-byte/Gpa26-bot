@@ -1041,7 +1041,24 @@ def main():
     pepites = load_pepites()
     suivi   = load_suivi()
     checks  = 0
-    tg_offset = 0
+    # Charger offset Telegram depuis fichier pour éviter de retraiter les vieux messages
+    tg_offset_file = DATA_DIR / "tg_offset.json"
+    try:
+        tg_offset = load_json(tg_offset_file, 0)
+        if not isinstance(tg_offset, int): tg_offset = 0
+    except: tg_offset = 0
+    # Si offset=0, initialiser avec le dernier update_id connu pour ignorer les vieux messages
+    if tg_offset == 0:
+        try:
+            r = requests.get(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/getUpdates",
+                params={"offset": -1}, timeout=10)
+            if r.ok:
+                updates = r.json().get("result", [])
+                if updates:
+                    tg_offset = updates[-1]["update_id"] + 1
+                    save_json(tg_offset_file, tg_offset)
+                    log.info(f"   Telegram offset initialisé à {tg_offset}")
+        except: pass
     dernier_rapport   = datetime.now().replace(hour=0, minute=0, second=0)
     dernier_heartbeat = datetime.now()
 
@@ -1073,6 +1090,8 @@ def main():
                 msg = upd.get("message", {})
                 texte = msg.get("text", "")
                 if texte: traiter_commande(texte, stats, pepites)
+            if updates:
+                save_json(tg_offset_file, tg_offset)
 
             load_config_runtime()
 
